@@ -79,7 +79,7 @@ function downloadTextFile(filename, mime, content) {
 function categoryOptionsHtml(selected, includeExtra) {
   let cats = Store.getSelectableCategories();
   if (includeExtra && !cats.includes(includeExtra) && includeExtra !== '') {
-    cats = [includeExtra, ...cats];
+    cats = [includeExtra, ...cats].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
   }
   const opts = ['<option value="" disabled' + (selected ? '' : ' selected') + '>-- Select Category --</option>'];
   cats.forEach(c => {
@@ -133,7 +133,7 @@ const Screens = {
       back: false,
       html: `
         <div class="month-glance">
-          <span class="month-glance__label">This month</span>
+          <span class="month-glance__label">This month - ${monthLabel(month)}</span>
           <span class="month-glance__value">${formatTHB(monthTotal)}</span>
         </div>
         <nav class="menu-list">
@@ -150,7 +150,7 @@ const Screens = {
             <span>View / Edit Expenses</span><span class="chev">&#8250;</span>
           </button>
           <button class="menu-item" data-action="nav" data-view="summaryMenu">
-            <span>Summary</span><span class="chev">&#8250;</span>
+            <span>Category Summary</span><span class="chev">&#8250;</span>
           </button>
           <button class="menu-item" data-action="nav" data-view="backup">
             <span>Backup & Restore</span><span class="chev">&#8250;</span>
@@ -182,6 +182,10 @@ const Screens = {
             <span class="field__label">Category</span>
             <select id="expCategory" required>${categoryOptionsHtml('')}</select>
           </label>
+          <label class="field">
+            <span class="field__label">Note (optional)</span>
+            <textarea id="expNote" rows="2" placeholder="Add a note&hellip;"></textarea>
+          </label>
           <div class="form-actions">
             <button type="button" class="btn btn--ghost" data-action="goBack">Cancel</button>
             <button type="submit" class="btn btn--primary">Save</button>
@@ -193,7 +197,8 @@ const Screens = {
           const date = isToday ? today : document.getElementById('expDate').value;
           const amount = document.getElementById('expAmount').value;
           const category = document.getElementById('expCategory').value;
-          const res = Store.addExpense({ date, amount, category });
+          const note = document.getElementById('expNote').value;
+          const res = Store.addExpense({ date, amount, category, note });
           if (!res.ok) { showFormError(res.error); return; }
           showToast('Expense saved.');
           goHome();
@@ -328,6 +333,7 @@ const Screens = {
               <div class="expense-row__main">
                 <span class="expense-row__cat">${escapeHtml(e.category)}</span>
                 <span class="expense-row__date">${formatDateDisplay(e.date)}</span>
+                ${e.note ? `<span class="expense-row__note">${escapeHtml(e.note)}</span>` : ''}
               </div>
               <span class="expense-row__amt">${formatTHB(e.amount)}</span>
             </li>`).join('')}
@@ -363,6 +369,10 @@ const Screens = {
             <span class="field__label">Category</span>
             <select id="editCategory" required>${categoryOptionsHtml(record.category, record.category)}</select>
           </label>
+          <label class="field">
+            <span class="field__label">Note (optional)</span>
+            <textarea id="editNote" rows="2" placeholder="Add a note&hellip;">${escapeHtml(record.note || '')}</textarea>
+          </label>
           <div class="form-actions">
             <button type="button" class="btn btn--danger" id="deleteExpBtn">Delete</button>
             <button type="submit" class="btn btn--primary">Save</button>
@@ -374,7 +384,8 @@ const Screens = {
           const date = document.getElementById('editDate').value;
           const amount = document.getElementById('editAmount').value;
           const category = document.getElementById('editCategory').value;
-          const res = Store.updateExpense(record.id, { date, amount, category });
+          const note = document.getElementById('editNote').value;
+          const res = Store.updateExpense(record.id, { date, amount, category, note });
           if (!res.ok) { showFormError(res.error); return; }
           showToast('Expense updated.');
           goBack();
@@ -392,7 +403,7 @@ const Screens = {
 
   summaryMenu() {
     return {
-      title: 'Summary',
+      title: 'Category Summary',
       back: true,
       html: `
         <nav class="menu-list">
@@ -451,9 +462,7 @@ const Screens = {
           const end = document.getElementById('rangeEnd').value;
           if (start > end) { showFormError('"From" date must be before "To" date.'); return; }
           if (p.mode === 'csv') {
-            exportCSVForRange(start, end);
-            showToast('CSV downloaded.');
-            popToView('summaryMenu');
+            navigate('csvTypeChoice', { start, end, returnTo: 'summaryMenu' });
           } else {
             navigate('summaryResult', { start, end });
           }
@@ -467,12 +476,32 @@ const Screens = {
     const rows = Store.summarizeByCategory(items);
     const total = Store.grandTotal(items);
     return {
-      title: 'Summary',
+      title: 'Category Summary',
       back: true,
       html: `
         <div class="period-label">${formatDateDisplay(p.start)} &ndash; ${formatDateDisplay(p.end)}</div>
         ${renderSummaryTable(rows, total)}
-        ${rows.length ? `<div class="form-actions"><button class="btn btn--primary" data-action="exportShownCSV" data-start="${p.start}" data-end="${p.end}">Save to CSV</button></div>` : ''}`
+        ${rows.length ? `<div class="form-actions"><button class="btn btn--primary" data-action="nav" data-view="csvTypeChoice" data-start="${p.start}" data-end="${p.end}">Save to CSV</button></div>` : ''}`
+    };
+  },
+
+  csvTypeChoice(p) {
+    return {
+      title: 'Save to CSV',
+      back: true,
+      html: `
+        <div class="period-label">${formatDateDisplay(p.start)} &ndash; ${formatDateDisplay(p.end)}</div>
+        <nav class="menu-list">
+          <button class="menu-item" data-action="exportCSVChoice" data-start="${p.start}" data-end="${p.end}" data-csvtype="summary" data-returnto="${p.returnTo || ''}">
+            <span>Category Summary</span><span class="chev">&#8250;</span>
+          </button>
+          <button class="menu-item" data-action="exportCSVChoice" data-start="${p.start}" data-end="${p.end}" data-csvtype="detailed" data-returnto="${p.returnTo || ''}">
+            <span>Detailed Expense List</span><span class="chev">&#8250;</span>
+          </button>
+          <button class="menu-item" data-action="exportCSVChoice" data-start="${p.start}" data-end="${p.end}" data-csvtype="both" data-returnto="${p.returnTo || ''}">
+            <span>Both</span><span class="chev">&#8250;</span>
+          </button>
+        </nav>`
     };
   },
 
@@ -521,11 +550,16 @@ function showFormError(msg) {
   el.hidden = false;
 }
 
-function exportCSVForRange(start, end) {
+function exportCSVForRange(start, end, csvType) {
   const items = Store.getExpensesInRange(start, end);
-  const rows = Store.summarizeByCategory(items);
-  const csv = Store.summaryToCSV(rows);
-  downloadTextFile(`expenses_summary_${start}_to_${end}.csv`, 'text/csv', csv);
+  const label = `${start}_to_${end}`;
+  if (csvType === 'summary' || csvType === 'both') {
+    const rows = Store.summarizeByCategory(items);
+    downloadTextFile(`expenses_summary_${label}.csv`, 'text/csv', Store.summaryToCSV(rows));
+  }
+  if (csvType === 'detailed' || csvType === 'both') {
+    downloadTextFile(`expenses_detailed_${label}.csv`, 'text/csv', Store.expensesToCSV(items));
+  }
 }
 
 async function handleAction(actionEl) {
@@ -541,22 +575,20 @@ async function handleAction(actionEl) {
     const month = Store.currentMonthISO();
     const [y, m] = month.split('-');
     const start = `${y}-${m}-01`;
-    const end = Store.todayISO().slice(0, 7) === month ? Store.todayISO() : `${y}-${m}-31`;
+    const end = Store.todayISO();
     if (actionEl.dataset.mode === 'csv') {
-      const items = Store.getExpensesForMonth(month);
-      const rows = Store.summarizeByCategory(items);
-      downloadTextFile(`expenses_summary_${month}.csv`, 'text/csv', Store.summaryToCSV(rows));
-      showToast('CSV downloaded.');
-      popToView('summaryMenu');
+      navigate('csvTypeChoice', { start, end, returnTo: 'summaryMenu' });
     } else {
       navigate('summaryResult', { start, end });
     }
     return;
   }
 
-  if (action === 'exportShownCSV') {
-    exportCSVForRange(actionEl.dataset.start, actionEl.dataset.end);
+  if (action === 'exportCSVChoice') {
+    const { start, end, csvtype, returnto } = actionEl.dataset;
+    exportCSVForRange(start, end, csvtype);
     showToast('CSV downloaded.');
+    if (returnto) popToView(returnto); else goBack();
     return;
   }
 
@@ -570,7 +602,7 @@ async function handleAction(actionEl) {
   if (action === 'deleteCategory') {
     const name = actionEl.dataset.name;
     const confirmed = await showConfirm(
-      `Delete category "${name}"? Past expenses in this category will be moved to "Removed".`,
+      `Delete category "${name}"? Past expenses in this category will be moved to "${Store.RESERVED_CATEGORY}".`,
       { danger: true, yesLabel: 'Delete' }
     );
     if (!confirmed) return;

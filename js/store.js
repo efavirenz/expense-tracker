@@ -7,7 +7,10 @@ const STORAGE_KEYS = {
   expenses:   'expenseApp_expenses_v1'
 };
 
-const RESERVED_CATEGORY = 'Removed';
+const RESERVED_CATEGORY = '[Removed]';
+// Old reserved-category label, kept only so existing data (saved before this
+// rename) can be migrated on load — see migrateLegacyRemovedCategory().
+const LEGACY_RESERVED_CATEGORY = 'Removed';
 
 const DEFAULT_CATEGORIES = [
   'Fees', 'Travel', 'Household', 'Clothing', 'Eat out',
@@ -39,6 +42,21 @@ const Store = (function () {
     if (localStorage.getItem(STORAGE_KEYS.expenses) === null) {
       writeJSON(STORAGE_KEYS.expenses, []);
     }
+    migrateLegacyRemovedCategory();
+  }
+
+  // One-time migration: expenses saved before the reserved category was
+  // renamed from "Removed" to "[Removed]" still carry the old label.
+  function migrateLegacyRemovedCategory() {
+    const expenses = getExpenses();
+    let changed = false;
+    expenses.forEach(e => {
+      if (e.category === LEGACY_RESERVED_CATEGORY) {
+        e.category = RESERVED_CATEGORY;
+        changed = true;
+      }
+    });
+    if (changed) writeJSON(STORAGE_KEYS.expenses, expenses);
   }
 
   function makeId() {
@@ -60,7 +78,8 @@ const Store = (function () {
   // ---------- Categories ----------
 
   function getCategories() {
-    return readJSON(STORAGE_KEYS.categories, DEFAULT_CATEGORIES.slice());
+    const cats = readJSON(STORAGE_KEYS.categories, DEFAULT_CATEGORIES.slice());
+    return cats.slice().sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
   }
 
   function categoryExists(name, categories) {
@@ -142,7 +161,7 @@ const Store = (function () {
     return { ok: true, value: Math.round(amount * 100) / 100 };
   }
 
-  function addExpense({ date, amount, category }) {
+  function addExpense({ date, amount, category, note }) {
     const amt = validateAmount(amount);
     if (!amt.ok) return amt;
     if (!date) return { ok: false, error: 'กรุณาเลือกวันที่' };
@@ -155,6 +174,7 @@ const Store = (function () {
       date,
       amount: amt.value,
       category,
+      note: (note || '').trim(),
       createdAt: new Date().toISOString()
     };
     expenses.push(record);
@@ -162,7 +182,7 @@ const Store = (function () {
     return { ok: true, record };
   }
 
-  function updateExpense(id, { date, amount, category }) {
+  function updateExpense(id, { date, amount, category, note }) {
     const amt = validateAmount(amount);
     if (!amt.ok) return amt;
     if (!date) return { ok: false, error: 'กรุณาเลือกวันที่' };
@@ -170,7 +190,7 @@ const Store = (function () {
     const expenses = getExpenses();
     const idx = expenses.findIndex(e => e.id === id);
     if (idx === -1) return { ok: false, error: 'ไม่พบรายการนี้' };
-    expenses[idx] = { ...expenses[idx], date, amount: amt.value, category };
+    expenses[idx] = { ...expenses[idx], date, amount: amt.value, category, note: (note || '').trim() };
     writeJSON(STORAGE_KEYS.expenses, expenses);
     return { ok: true };
   }
@@ -225,6 +245,25 @@ const Store = (function () {
     return lines.join('\n');
   }
 
+  // Itemized, one-row-per-expense CSV (includes Note). Sorted oldest-to-newest
+  // so it reads like a ledger rather than the newest-first order used on screen.
+  function expensesToCSV(expenseList) {
+    const lines = ['Date,Category,Amount (THB),Note'];
+    const sorted = expenseList.slice().sort((a, b) => {
+      if (a.date !== b.date) return a.date.localeCompare(b.date);
+      return (a.createdAt || '').localeCompare(b.createdAt || '');
+    });
+    sorted.forEach(e => {
+      lines.push([
+        csvEscape(e.date),
+        csvEscape(e.category),
+        e.amount.toFixed(2),
+        csvEscape(e.note || '')
+      ].join(','));
+    });
+    return lines.join('\n');
+  }
+
   // ---------- JSON backup / restore ----------
 
   function exportBackup() {
@@ -263,6 +302,7 @@ const Store = (function () {
       date: e.date,
       amount: e.amount,
       category: e.category,
+      note: typeof e.note === 'string' ? e.note : '',
       createdAt: e.createdAt || new Date().toISOString()
     })));
     return { ok: true };
@@ -273,7 +313,7 @@ const Store = (function () {
     todayISO, currentMonthISO,
     getCategories, addCategory, renameCategory, deleteCategory, getSelectableCategories, categoryExists,
     getExpenses, addExpense, updateExpense, deleteExpense, getExpensesForMonth, getExpensesInRange,
-    summarizeByCategory, grandTotal, summaryToCSV,
+    summarizeByCategory, grandTotal, summaryToCSV, expensesToCSV,
     exportBackup, importBackup,
     RESERVED_CATEGORY
   };
