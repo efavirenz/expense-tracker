@@ -1,0 +1,280 @@
+/* ============================================================
+   store.js — data layer (localStorage). No UI code lives here.
+   ============================================================ */
+
+const STORAGE_KEYS = {
+  categories: 'expenseApp_categories_v1',
+  expenses:   'expenseApp_expenses_v1'
+};
+
+const RESERVED_CATEGORY = 'Removed';
+
+const DEFAULT_CATEGORIES = [
+  'Fees', 'Travel', 'Household', 'Clothing', 'Eat out',
+  'Food & Drink', 'Transportation', 'Utilities', 'Shopping'
+];
+
+const Store = (function () {
+
+  function readJSON(key, fallback) {
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw === null) return fallback;
+      const parsed = JSON.parse(raw);
+      return parsed === null || parsed === undefined ? fallback : parsed;
+    } catch (e) {
+      console.error('Store read error for', key, e);
+      return fallback;
+    }
+  }
+
+  function writeJSON(key, value) {
+    localStorage.setItem(key, JSON.stringify(value));
+  }
+
+  function init() {
+    if (localStorage.getItem(STORAGE_KEYS.categories) === null) {
+      writeJSON(STORAGE_KEYS.categories, DEFAULT_CATEGORIES.slice());
+    }
+    if (localStorage.getItem(STORAGE_KEYS.expenses) === null) {
+      writeJSON(STORAGE_KEYS.expenses, []);
+    }
+  }
+
+  function makeId() {
+    return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+  }
+
+  function todayISO() {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
+  function currentMonthISO() {
+    return todayISO().slice(0, 7); // YYYY-MM
+  }
+
+  // ---------- Categories ----------
+
+  function getCategories() {
+    return readJSON(STORAGE_KEYS.categories, DEFAULT_CATEGORIES.slice());
+  }
+
+  function categoryExists(name, categories) {
+    const list = categories || getCategories();
+    const target = name.trim().toLowerCase();
+    if (target === RESERVED_CATEGORY.toLowerCase()) return true;
+    return list.some(c => c.toLowerCase() === target);
+  }
+
+  function addCategory(rawName) {
+    const name = (rawName || '').trim();
+    if (!name) return { ok: false, error: 'กรุณากรอกชื่อหมวดหมู่' };
+    if (categoryExists(name)) return { ok: false, error: `มีหมวดหมู่ชื่อ "${name}" อยู่แล้ว` };
+    const categories = getCategories();
+    categories.push(name);
+    writeJSON(STORAGE_KEYS.categories, categories);
+    return { ok: true };
+  }
+
+  function renameCategory(oldName, rawNewName) {
+    const newName = (rawNewName || '').trim();
+    if (!newName) return { ok: false, error: 'กรุณากรอกชื่อใหม่' };
+    if (oldName === RESERVED_CATEGORY) return { ok: false, error: 'ไม่สามารถแก้ไขหมวดหมู่นี้ได้' };
+    if (newName.toLowerCase() === oldName.toLowerCase()) {
+      return { ok: false, error: 'ชื่อใหม่เหมือนชื่อเดิม' };
+    }
+    const categories = getCategories();
+    if (categoryExists(newName, categories)) {
+      return { ok: false, error: `มีหมวดหมู่ชื่อ "${newName}" อยู่แล้ว กรุณาใช้ชื่ออื่น` };
+    }
+    const idx = categories.findIndex(c => c === oldName);
+    if (idx === -1) return { ok: false, error: 'ไม่พบหมวดหมู่นี้' };
+    categories[idx] = newName;
+    writeJSON(STORAGE_KEYS.categories, categories);
+
+    // cascade to historical expenses
+    const expenses = getExpenses();
+    let changed = false;
+    expenses.forEach(e => {
+      if (e.category === oldName) { e.category = newName; changed = true; }
+    });
+    if (changed) writeJSON(STORAGE_KEYS.expenses, expenses);
+
+    return { ok: true };
+  }
+
+  function deleteCategory(name) {
+    if (name === RESERVED_CATEGORY) return { ok: false, error: 'ไม่สามารถลบหมวดหมู่นี้ได้' };
+    const categories = getCategories().filter(c => c !== name);
+    writeJSON(STORAGE_KEYS.categories, categories);
+
+    const expenses = getExpenses();
+    let changed = false;
+    expenses.forEach(e => {
+      if (e.category === name) { e.category = RESERVED_CATEGORY; changed = true; }
+    });
+    if (changed) writeJSON(STORAGE_KEYS.expenses, expenses);
+
+    return { ok: true };
+  }
+
+  // Categories selectable when adding/editing an expense (Removed is hidden)
+  function getSelectableCategories() {
+    return getCategories();
+  }
+
+  // ---------- Expenses ----------
+
+  function getExpenses() {
+    return readJSON(STORAGE_KEYS.expenses, []);
+  }
+
+  function validateAmount(rawAmount) {
+    const amount = parseFloat(rawAmount);
+    if (isNaN(amount) || amount <= 0) {
+      return { ok: false, error: 'จำนวนเงินต้องเป็นตัวเลขมากกว่า 0' };
+    }
+    // round to 2 decimals (satang)
+    return { ok: true, value: Math.round(amount * 100) / 100 };
+  }
+
+  function addExpense({ date, amount, category }) {
+    const amt = validateAmount(amount);
+    if (!amt.ok) return amt;
+    if (!date) return { ok: false, error: 'กรุณาเลือกวันที่' };
+    if (!category || category === RESERVED_CATEGORY) {
+      return { ok: false, error: 'กรุณาเลือกหมวดหมู่' };
+    }
+    const expenses = getExpenses();
+    const record = {
+      id: makeId(),
+      date,
+      amount: amt.value,
+      category,
+      createdAt: new Date().toISOString()
+    };
+    expenses.push(record);
+    writeJSON(STORAGE_KEYS.expenses, expenses);
+    return { ok: true, record };
+  }
+
+  function updateExpense(id, { date, amount, category }) {
+    const amt = validateAmount(amount);
+    if (!amt.ok) return amt;
+    if (!date) return { ok: false, error: 'กรุณาเลือกวันที่' };
+    if (!category) return { ok: false, error: 'กรุณาเลือกหมวดหมู่' };
+    const expenses = getExpenses();
+    const idx = expenses.findIndex(e => e.id === id);
+    if (idx === -1) return { ok: false, error: 'ไม่พบรายการนี้' };
+    expenses[idx] = { ...expenses[idx], date, amount: amt.value, category };
+    writeJSON(STORAGE_KEYS.expenses, expenses);
+    return { ok: true };
+  }
+
+  function deleteExpense(id) {
+    const expenses = getExpenses().filter(e => e.id !== id);
+    writeJSON(STORAGE_KEYS.expenses, expenses);
+    return { ok: true };
+  }
+
+  function getExpensesForMonth(yyyyMm) {
+    return getExpenses()
+      .filter(e => e.date.slice(0, 7) === yyyyMm)
+      .sort((a, b) => b.date.localeCompare(a.date));
+  }
+
+  function getExpensesInRange(startDate, endDate) {
+    return getExpenses()
+      .filter(e => e.date >= startDate && e.date <= endDate)
+      .sort((a, b) => b.date.localeCompare(a.date));
+  }
+
+  // ---------- Summaries ----------
+
+  function summarizeByCategory(expenseList) {
+    const totals = {};
+    expenseList.forEach(e => {
+      totals[e.category] = (totals[e.category] || 0) + e.amount;
+    });
+    return Object.keys(totals)
+      .sort((a, b) => totals[b] - totals[a])
+      .map(cat => ({ category: cat, total: Math.round(totals[cat] * 100) / 100 }));
+  }
+
+  function grandTotal(expenseList) {
+    return Math.round(expenseList.reduce((s, e) => s + e.amount, 0) * 100) / 100;
+  }
+
+  // ---------- CSV export ----------
+
+  function csvEscape(value) {
+    const s = String(value);
+    if (/[",\n]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+    return s;
+  }
+
+  function summaryToCSV(summaryRows) {
+    const lines = ['Category,Total (THB)'];
+    summaryRows.forEach(r => {
+      lines.push(`${csvEscape(r.category)},${r.total.toFixed(2)}`);
+    });
+    return lines.join('\n');
+  }
+
+  // ---------- JSON backup / restore ----------
+
+  function exportBackup() {
+    const payload = {
+      app: 'expense-tracker-pwa',
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      categories: getCategories(),
+      expenses: getExpenses()
+    };
+    return JSON.stringify(payload, null, 2);
+  }
+
+  function importBackup(jsonString) {
+    let data;
+    try {
+      data = JSON.parse(jsonString);
+    } catch (e) {
+      return { ok: false, error: 'ไฟล์ไม่ใช่ JSON ที่ถูกต้อง' };
+    }
+    if (!data || !Array.isArray(data.categories) || !Array.isArray(data.expenses)) {
+      return { ok: false, error: 'โครงสร้างไฟล์ไม่ถูกต้อง (ต้องมี categories และ expenses)' };
+    }
+    // light validation of expense records
+    const validExpenses = data.expenses.every(e =>
+      e && typeof e.date === 'string' &&
+      typeof e.amount === 'number' &&
+      typeof e.category === 'string'
+    );
+    if (!validExpenses) {
+      return { ok: false, error: 'พบข้อมูลรายการที่ไม่ถูกต้องในไฟล์' };
+    }
+    writeJSON(STORAGE_KEYS.categories, data.categories);
+    writeJSON(STORAGE_KEYS.expenses, data.expenses.map(e => ({
+      id: e.id || makeId(),
+      date: e.date,
+      amount: e.amount,
+      category: e.category,
+      createdAt: e.createdAt || new Date().toISOString()
+    })));
+    return { ok: true };
+  }
+
+  return {
+    init,
+    todayISO, currentMonthISO,
+    getCategories, addCategory, renameCategory, deleteCategory, getSelectableCategories, categoryExists,
+    getExpenses, addExpense, updateExpense, deleteExpense, getExpensesForMonth, getExpensesInRange,
+    summarizeByCategory, grandTotal, summaryToCSV,
+    exportBackup, importBackup,
+    RESERVED_CATEGORY
+  };
+})();
