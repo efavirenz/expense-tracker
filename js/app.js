@@ -4,7 +4,7 @@
 
 Store.init();
 
-const APP_VERSION = 'V4';
+const APP_VERSION = 'V5';
 
 const appEl = document.getElementById('app');
 const titleEl = document.getElementById('pageTitle');
@@ -95,7 +95,7 @@ function merchantDatalistHtml() {
   return `<datalist id="merchantList">${merchants.map(m => `<option value="${escapeHtml(m)}">`).join('')}</datalist>`;
 }
 
-function renderSummaryTable(rows, total) {
+function renderSummaryTable(rows, total, showMerchants = true) {
   if (rows.length === 0) {
     return `<div class="empty-state">No expenses in this period.</div>`;
   }
@@ -107,13 +107,14 @@ function renderSummaryTable(rows, total) {
     </tr>`;
     const merchantRows = r.merchants.map(m => `
     <tr class="summary-table__merchant-row">
-      <td class="summary-table__merchant-name ${m.merchant === Store.NO_MERCHANT_LABEL ? 'summary-table__merchant-name--empty' : ''}">${escapeHtml(m.merchant)}</td>
-      <td class="num">${formatTHB(m.total)}</td>
+      <td class="summary-table__merchant-name ${m.merchant === Store.NO_MERCHANT_LABEL ? 'summary-table__merchant-name--empty' : ''}">&nbsp;&nbsp;&nbsp;${escapeHtml(m.merchant)}</td>
+      <td class="num summary-table__merchant-num">${formatTHB(m.total)}&nbsp;&nbsp;&nbsp;</td>
     </tr>`).join('');
     return catRow + merchantRows;
   }).join('');
+  const hideClass = !showMerchants ? ' hide-merchants' : '';
   return `
-    <table class="summary-table">
+    <table class="summary-table${hideClass}">
       <thead><tr><th>Category</th><th class="num">Total</th></tr></thead>
       <tbody>${body}</tbody>
       <tfoot><tr><th>Grand Total</th><th class="num">${formatTHB(total)}</th></tr></tfoot>
@@ -163,7 +164,7 @@ const Screens = {
             <span>View / Edit Expenses</span><span class="chev">&#8250;</span>
           </button>
           <button class="menu-item" data-action="nav" data-view="summaryMenu">
-            <span>Category Summary</span><span class="chev">&#8250;</span>
+            <span>Summary</span><span class="chev">&#8250;</span>
           </button>
           <button class="menu-item" data-action="nav" data-view="categoriesMenu">
             <span>Edit Category / Merchant</span><span class="chev">&#8250;</span>
@@ -538,7 +539,7 @@ const Screens = {
 
   summaryMenu() {
     return {
-      title: 'Category Summary',
+      title: 'Summary',
       back: true,
       html: `
         <nav class="menu-list">
@@ -613,13 +614,34 @@ const Screens = {
     const items = Store.getExpensesInRange(p.start, p.end);
     const rows = Store.summarizeByCategoryAndMerchant(items);
     const total = Store.grandTotal(items);
+    const showMerchants = Store.getShowMerchants();
     return {
-      title: 'Category Summary',
+      title: 'Summary',
       back: true,
       html: `
-        <div class="period-label">${formatDateDisplay(p.start)} &ndash; ${formatDateDisplay(p.end)}</div>
-        ${renderSummaryTable(rows, total)}
-        ${rows.length ? `<div class="form-actions"><button class="btn btn--primary" data-action="nav" data-view="csvTypeChoice" data-start="${p.start}" data-end="${p.end}">Save to CSV</button></div>` : ''}`
+        <div class="summary-toolbar">
+          <div class="period-label">${formatDateDisplay(p.start)} &ndash; ${formatDateDisplay(p.end)}</div>
+          <label class="toggle-control">
+            <input type="checkbox" id="toggleMerchants" ${showMerchants ? 'checked' : ''}>
+            <span class="toggle-switch"></span>
+            <span class="toggle-label">Show Merchant</span>
+          </label>
+        </div>
+        ${renderSummaryTable(rows, total, showMerchants)}
+        ${rows.length ? `<div class="form-actions"><button class="btn btn--primary" data-action="nav" data-view="csvTypeChoice" data-start="${p.start}" data-end="${p.end}">Save to CSV</button></div>` : ''}`,
+      afterRender() {
+        const toggle = document.getElementById('toggleMerchants');
+        if (toggle) {
+          toggle.addEventListener('change', (e) => {
+            const show = e.target.checked;
+            Store.setShowMerchants(show);
+            const table = document.querySelector('.summary-table');
+            if (table) {
+              table.classList.toggle('hide-merchants', !show);
+            }
+          });
+        }
+      }
     };
   },
 
@@ -631,7 +653,7 @@ const Screens = {
         <div class="period-label">${formatDateDisplay(p.start)} &ndash; ${formatDateDisplay(p.end)}</div>
         <nav class="menu-list">
           <button class="menu-item" data-action="exportCSVChoice" data-start="${p.start}" data-end="${p.end}" data-csvtype="summary" data-returnto="${p.returnTo || ''}">
-            <span>Category Summary</span><span class="chev">&#8250;</span>
+            <span>Summary</span><span class="chev">&#8250;</span>
           </button>
           <button class="menu-item" data-action="exportCSVChoice" data-start="${p.start}" data-end="${p.end}" data-csvtype="detailed" data-returnto="${p.returnTo || ''}">
             <span>Detailed Expense List</span><span class="chev">&#8250;</span>

@@ -3,9 +3,10 @@
    ============================================================ */
 
 const STORAGE_KEYS = {
-  categories: 'expenseApp_categories_v1',
-  expenses:   'expenseApp_expenses_v1',
-  merchants:  'expenseApp_merchants_v1'
+  categories:    'expenseApp_categories_v1',
+  expenses:      'expenseApp_expenses_v1',
+  merchants:     'expenseApp_merchants_v1',
+  showMerchants: 'expenseApp_showMerchants_v1'
 };
 
 const RESERVED_CATEGORY = '[Removed]';
@@ -454,6 +455,14 @@ const Store = (function () {
     return { ok: true };
   }
 
+  function getShowMerchants() {
+    return readJSON(STORAGE_KEYS.showMerchants, true);
+  }
+
+  function setShowMerchants(val) {
+    writeJSON(STORAGE_KEYS.showMerchants, Boolean(val));
+  }
+
   return {
     init,
     todayISO, currentMonthISO,
@@ -461,7 +470,7 @@ const Store = (function () {
     getMerchants, rememberMerchant, merchantExists, addMerchant, renameMerchant, deleteMerchant,
     getExpenses, addExpense, updateExpense, deleteExpense, getExpensesForMonth, getExpensesInRange,
     summarizeByCategory, summarizeByCategoryAndMerchant, grandTotal, summaryToCSV, expensesToCSV,
-    exportBackup, importBackup,
+    exportBackup, importBackup, getShowMerchants, setShowMerchants,
     RESERVED_CATEGORY, NO_MERCHANT_LABEL
   };
 })();

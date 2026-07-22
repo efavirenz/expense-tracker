@@ -4,20 +4,9 @@ A personal, single-user daily expense tracker. Runs entirely in the browser — 
 backend, no account, no App Store. All data is stored locally on the device
 (`localStorage`), and everything works offline once installed.
 
-## Deploy to GitHub Pages (free)
-
-1. Create a new **public** GitHub repository (e.g. `expense-tracker`).
-2. Upload every file in this folder, keeping the folder structure exactly as-is
-   (`index.html`, `manifest.json`, `service-worker.js`, `css/`, `js/`, `icons/`
-   all at the repo root).
-3. In the repo: **Settings → Pages → Source → Deploy from a branch → `main` /
-   `(root)` → Save**.
-4. Wait 1–2 minutes. Your app will be live at:
-   `https://<your-username>.github.io/<repo-name>/`
-
 ## Install on iPhone
 
-1. Open the URL above in **Safari** (must be Safari, not Chrome — iOS only
+1. Open the URL *https://efavirenz.github.io/expense-tracker/* in **Safari** (must be Safari, not Chrome — iOS only
    allows installing PWAs from Safari).
 2. Tap the **Share** icon → **Add to Home Screen** → **Add**.
 3. Launch it from the home screen icon like any other app.
@@ -83,6 +72,13 @@ Two things were added during planning review, both agreed on beforehand:
   summary export, specifically to protect against local data loss.
 
 ## Changelog
+
+**v5 — Summary display formatting, toggle & theme update**
+- Renamed *Category Summary* menu to **Summary**.
+- Updated Summary result view: merchant names are indented by 3 space characters, and 3 space characters follow each merchant's total number.
+- Added a toggle switch at the top of Summary views to show or hide merchant lines.
+- Updated top homepage summary card background color to `#00FFF2` with dark font.
+- Home screen version tag bumped to **V5**; service worker cache bumped to `v7`.
 
 **v4 — Merchant breakdown in Category Summary**
 - The Category Summary **Display** screen now nests a merchant breakdown
