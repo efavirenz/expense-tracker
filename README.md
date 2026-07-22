@@ -25,13 +25,21 @@ backend, no account, no App Store. All data is stored locally on the device
 ## Categories & merchants
 
 Every expense has a **category** (a fixed list you manage under *Edit
-Category*) and an optional **merchant** (a free-text field, e.g. `Shopee`,
-`Lazada`, `7-Eleven`, a specific shop name — anything you like).
+Category / Merchant*) and an optional **merchant** (e.g. `Shopee`, `Lazada`,
+`7-Eleven`, a specific shop name — anything you like).
 
-- Merchant is **not** a fixed list. Type anything; it's just remembered so it
-  shows up as a suggestion (via the browser's native autocomplete) the next
-  time you type an expense. There's nothing to "add" or manage — it learns
-  from what you type.
+- Merchant is still **not a validated list** — typing a brand-new name on the
+  expense form works exactly as before and it's simply remembered for
+  autocomplete next time. What's new in v3 is that you can now also manage
+  that suggestion list directly from *Edit Category / Merchant → Add /
+  Rename / Delete Merchant*, the same way categories are managed:
+  - **Add Merchant** adds a name to the suggestion list up front, without
+    waiting to type it on an expense first.
+  - **Rename Merchant** updates the suggestion list and cascades to every
+    past expense using that merchant, just like Rename Category does.
+  - **Delete Merchant** only removes it from the suggestion list — past
+    expenses keep their merchant text unchanged, since merchant was never a
+    required field the way category is.
 - This replaces the old pattern of bolting the platform onto the category
   name itself (e.g. `Skincare-Shopee`, `Clothing-Lazada`). Now the category
   stays clean (`Skincare`, `Clothing`) and the merchant carries that detail
@@ -39,7 +47,7 @@ Category*) and an optional **merchant** (a free-text field, e.g. `Shopee`,
   near-duplicate categories.
 - The app ships with a default category list and two seed merchants
   (`Lazada`, `Shopee`) based on real prior usage — edit or delete any of them
-  freely from *Edit Category*, and the merchant suggestions adjust
+  freely from *Edit Category / Merchant*, and the merchant suggestions adjust
   automatically as you type new ones.
 
 ## Data & backup — please read
@@ -76,6 +84,26 @@ Two things were added during planning review, both agreed on beforehand:
 
 ## Changelog
 
+**v3 — Merchant management & menu reorg**
+- *Edit Category* renamed to **Edit Category / Merchant**, and moved on the
+  home screen to sit directly above **Backup & Restore** (was previously
+  third, above *View / Edit Expenses*).
+- Under that menu, category management is unchanged (**Add / Rename / Delete
+  Category**), and a new **Merchant** section sits alongside it with the same
+  three actions — **Add / Rename / Delete Merchant**. Renaming a merchant
+  cascades to past expenses; deleting one only affects the suggestion list
+  (see *Categories & merchants* above for why that's different from category
+  deletion).
+- Added `Store.addMerchant`, `Store.renameMerchant`, and
+  `Store.deleteMerchant` to `store.js`, mirroring the existing category
+  functions.
+- Home screen now shows a small **V3** version tag, right-aligned above the
+  month total.
+- Re-checked the default category list and seed merchants against a fresh
+  iPhone export (2026-07-22) — already in sync, no changes needed.
+- Service worker cache bumped to `v5` so installed home-screen apps pick up
+  this update.
+
 **v2 — Merchant field & menu cleanup**
 - Added a free-text **Merchant** field to the add/edit expense form, with
   `<datalist>` autocomplete sourced from previously-used merchants
@@ -101,6 +129,7 @@ Two things were added during planning review, both agreed on beforehand:
   and Apple restricts both heavily for PWAs anyway).
 - UI is plain/functional by design (per your choice of "simple web form"
   over an iOS-style mimicked interface).
-- The merchant field is a plain suggestion list with no dedicated management
-  screen (no rename/delete UI) — it grows from what you type and is only
-  meant to speed up entry, not to be curated like categories are.
+- Deleting a merchant only removes it from the suggestion list; it does not
+  retroactively edit past expenses (unlike deleting a category, which moves
+  affected expenses to `[Removed]`). This is intentional — merchant was never
+  a required field, so there's no need for a "removed" bucket.

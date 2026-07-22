@@ -4,6 +4,8 @@
 
 Store.init();
 
+const APP_VERSION = 'V3';
+
 const appEl = document.getElementById('app');
 const titleEl = document.getElementById('pageTitle');
 const backBtn = document.getElementById('backBtn');
@@ -137,6 +139,7 @@ const Screens = {
       title: 'Expenses',
       back: false,
       html: `
+        <div class="home-version">${APP_VERSION}</div>
         <div class="month-glance">
           <span class="month-glance__label">This month - ${monthLabel(month)}</span>
           <span class="month-glance__value">${formatTHB(monthTotal)}</span>
@@ -148,14 +151,14 @@ const Screens = {
           <button class="menu-item" data-action="nav" data-view="addExpense" data-mode="other">
             <span>Add Expense (Other Day)</span><span class="chev">&#8250;</span>
           </button>
-          <button class="menu-item" data-action="nav" data-view="categoriesMenu">
-            <span>Edit Category</span><span class="chev">&#8250;</span>
-          </button>
           <button class="menu-item" data-action="nav" data-view="expensesList" data-month="${month}">
             <span>View / Edit Expenses</span><span class="chev">&#8250;</span>
           </button>
           <button class="menu-item" data-action="nav" data-view="summaryMenu">
             <span>Category Summary</span><span class="chev">&#8250;</span>
+          </button>
+          <button class="menu-item" data-action="nav" data-view="categoriesMenu">
+            <span>Edit Category / Merchant</span><span class="chev">&#8250;</span>
           </button>
           <button class="menu-item" data-action="nav" data-view="backup">
             <span>Backup & Restore</span><span class="chev">&#8250;</span>
@@ -220,20 +223,37 @@ const Screens = {
 
   categoriesMenu() {
     return {
-      title: 'Edit Category',
+      title: 'Edit Category / Merchant',
       back: true,
       html: `
-        <nav class="menu-list">
-          <button class="menu-item" data-action="nav" data-view="categoryAdd">
-            <span>Add Category</span><span class="chev">&#8250;</span>
-          </button>
-          <button class="menu-item" data-action="nav" data-view="categoryRenameList">
-            <span>Rename Category</span><span class="chev">&#8250;</span>
-          </button>
-          <button class="menu-item" data-action="nav" data-view="categoryDeleteList">
-            <span>Delete Category</span><span class="chev">&#8250;</span>
-          </button>
-        </nav>`
+        <section class="backup-section">
+          <h2 class="section-title">Category</h2>
+          <nav class="menu-list">
+            <button class="menu-item" data-action="nav" data-view="categoryAdd">
+              <span>Add Category</span><span class="chev">&#8250;</span>
+            </button>
+            <button class="menu-item" data-action="nav" data-view="categoryRenameList">
+              <span>Rename Category</span><span class="chev">&#8250;</span>
+            </button>
+            <button class="menu-item" data-action="nav" data-view="categoryDeleteList">
+              <span>Delete Category</span><span class="chev">&#8250;</span>
+            </button>
+          </nav>
+        </section>
+        <section class="backup-section">
+          <h2 class="section-title">Merchant</h2>
+          <nav class="menu-list">
+            <button class="menu-item" data-action="nav" data-view="merchantAdd">
+              <span>Add Merchant</span><span class="chev">&#8250;</span>
+            </button>
+            <button class="menu-item" data-action="nav" data-view="merchantRenameList">
+              <span>Rename Merchant</span><span class="chev">&#8250;</span>
+            </button>
+            <button class="menu-item" data-action="nav" data-view="merchantDeleteList">
+              <span>Delete Merchant</span><span class="chev">&#8250;</span>
+            </button>
+          </nav>
+        </section>`
     };
   },
 
@@ -324,6 +344,96 @@ const Screens = {
               <span>${escapeHtml(c)}</span><span class="chev">&#8250;</span>
             </button>`).join('')}
         </nav>` : `<div class="empty-state">No categories yet.</div>`
+    };
+  },
+
+  merchantAdd() {
+    return {
+      title: 'Add Merchant',
+      back: true,
+      html: `
+        <form class="form" id="merchAddForm">
+          <div id="formError" class="form-error" hidden></div>
+          <label class="field">
+            <span class="field__label">Merchant Name</span>
+            <input type="text" id="merchName" placeholder="e.g. Central" required autofocus>
+          </label>
+          <div class="form-actions">
+            <button type="button" class="btn btn--ghost" data-action="goBack">Cancel</button>
+            <button type="submit" class="btn btn--primary">Save</button>
+          </div>
+        </form>`,
+      afterRender() {
+        document.getElementById('merchAddForm').addEventListener('submit', (e) => {
+          e.preventDefault();
+          const name = document.getElementById('merchName').value;
+          const res = Store.addMerchant(name);
+          if (!res.ok) { showFormError(res.error); return; }
+          showToast('Merchant added.');
+          popToView('categoriesMenu');
+        });
+      }
+    };
+  },
+
+  merchantRenameList() {
+    const merchants = Store.getMerchants();
+    return {
+      title: 'Rename Merchant',
+      back: true,
+      html: merchants.length ? `
+        <nav class="menu-list">
+          ${merchants.map(m => `
+            <button class="menu-item" data-action="nav" data-view="merchantRenameForm" data-oldname="${escapeHtml(m)}">
+              <span>${escapeHtml(m)}</span><span class="chev">&#8250;</span>
+            </button>`).join('')}
+        </nav>` : `<div class="empty-state">No merchants yet.</div>`
+    };
+  },
+
+  merchantRenameForm(p) {
+    return {
+      title: 'Rename Merchant',
+      back: true,
+      html: `
+        <form class="form" id="merchRenameForm">
+          <div id="formError" class="form-error" hidden></div>
+          <label class="field">
+            <span class="field__label">New name for "${escapeHtml(p.oldname)}"</span>
+            <input type="text" id="merchNewName" value="${escapeHtml(p.oldname)}" required autofocus>
+          </label>
+          <div class="form-actions">
+            <button type="button" class="btn btn--ghost" data-action="goBack">Cancel</button>
+            <button type="submit" class="btn btn--primary">Save</button>
+          </div>
+        </form>`,
+      afterRender() {
+        document.getElementById('merchRenameForm').addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const newName = document.getElementById('merchNewName').value;
+          const confirmed = await showConfirm(`Rename "${p.oldname}" to "${newName.trim()}"? This updates all past expenses.`);
+          if (!confirmed) return;
+          const res = Store.renameMerchant(p.oldname, newName);
+          if (!res.ok) { showFormError(res.error); return; }
+          showToast('Merchant renamed.');
+          popToView('categoriesMenu');
+        });
+      }
+    };
+  },
+
+  merchantDeleteList() {
+    const merchants = Store.getMerchants();
+    return {
+      title: 'Delete Merchant',
+      back: true,
+      html: merchants.length ? `
+        <nav class="menu-list">
+          ${merchants.map(m => `
+            <button class="menu-item menu-item--danger" data-action="deleteMerchant" data-name="${escapeHtml(m)}">
+              <span>${escapeHtml(m)}</span><span class="chev">&#8250;</span>
+            </button>`).join('')}
+        </nav>` : `<div class="empty-state">No merchants yet.</div>`
     };
   },
 
@@ -628,6 +738,19 @@ async function handleAction(actionEl) {
     if (!confirmed) return;
     Store.deleteCategory(name);
     showToast('Category deleted.');
+    popToView('categoriesMenu');
+    return;
+  }
+
+  if (action === 'deleteMerchant') {
+    const name = actionEl.dataset.name;
+    const confirmed = await showConfirm(
+      `Delete merchant "${name}"? Past expenses keep this merchant text — it just stops appearing as a suggestion.`,
+      { danger: true, yesLabel: 'Delete' }
+    );
+    if (!confirmed) return;
+    Store.deleteMerchant(name);
+    showToast('Merchant deleted.');
     popToView('categoriesMenu');
     return;
   }

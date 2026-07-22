@@ -157,12 +157,21 @@ const Store = (function () {
   }
 
   // ---------- Merchants (free-text sub-category, not a fixed list) ----------
-  // Merchant is a plain string on each expense record. This list only powers
-  // the <datalist> autocomplete — it is not validated against on save.
+  // Merchant is a plain string on each expense record, so it is still NOT
+  // validated against this list on save (typing a brand-new merchant on the
+  // expense form works exactly as before, via rememberMerchant). The list is
+  // now also directly manageable — Add/Rename/Delete Merchant — the same way
+  // categories are, for tidying up the autocomplete suggestions.
 
   function getMerchants() {
     const list = readJSON(STORAGE_KEYS.merchants, DEFAULT_MERCHANTS.slice());
     return list.slice().sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+  }
+
+  function merchantExists(name, merchants) {
+    const list = merchants || getMerchants();
+    const target = name.trim().toLowerCase();
+    return list.some(m => m.toLowerCase() === target);
   }
 
   function rememberMerchant(rawName) {
@@ -174,6 +183,52 @@ const Store = (function () {
       merchants.push(name);
       writeJSON(STORAGE_KEYS.merchants, merchants);
     }
+  }
+
+  function addMerchant(rawName) {
+    const name = (rawName || '').trim();
+    if (!name) return { ok: false, error: 'กรุณากรอกชื่อร้านค้า' };
+    if (merchantExists(name)) return { ok: false, error: `มีร้านค้าชื่อ "${name}" อยู่แล้ว` };
+    const merchants = getMerchants();
+    merchants.push(name);
+    writeJSON(STORAGE_KEYS.merchants, merchants);
+    return { ok: true };
+  }
+
+  function renameMerchant(oldName, rawNewName) {
+    const newName = (rawNewName || '').trim();
+    if (!newName) return { ok: false, error: 'กรุณากรอกชื่อใหม่' };
+    if (newName.toLowerCase() === oldName.toLowerCase()) {
+      return { ok: false, error: 'ชื่อใหม่เหมือนชื่อเดิม' };
+    }
+    const merchants = getMerchants();
+    if (merchantExists(newName, merchants)) {
+      return { ok: false, error: `มีร้านค้าชื่อ "${newName}" อยู่แล้ว กรุณาใช้ชื่ออื่น` };
+    }
+    const idx = merchants.findIndex(m => m === oldName);
+    if (idx === -1) return { ok: false, error: 'ไม่พบร้านค้านี้' };
+    merchants[idx] = newName;
+    writeJSON(STORAGE_KEYS.merchants, merchants);
+
+    // cascade to historical expenses, same as renameCategory does
+    const expenses = getExpenses();
+    let changed = false;
+    expenses.forEach(e => {
+      if (e.merchant === oldName) { e.merchant = newName; changed = true; }
+    });
+    if (changed) writeJSON(STORAGE_KEYS.expenses, expenses);
+
+    return { ok: true };
+  }
+
+  // Unlike deleteCategory, this never touches past expenses: merchant was
+  // never a required/validated field, so there is no "[Removed]" bucket to
+  // move orphaned records into. Deleting just removes the name from the
+  // autocomplete suggestion list going forward.
+  function deleteMerchant(name) {
+    const merchants = getMerchants().filter(m => m !== name);
+    writeJSON(STORAGE_KEYS.merchants, merchants);
+    return { ok: true };
   }
 
   // ---------- Expenses ----------
@@ -368,7 +423,7 @@ const Store = (function () {
     init,
     todayISO, currentMonthISO,
     getCategories, addCategory, renameCategory, deleteCategory, getSelectableCategories, categoryExists,
-    getMerchants, rememberMerchant,
+    getMerchants, rememberMerchant, merchantExists, addMerchant, renameMerchant, deleteMerchant,
     getExpenses, addExpense, updateExpense, deleteExpense, getExpensesForMonth, getExpensesInRange,
     summarizeByCategory, grandTotal, summaryToCSV, expensesToCSV,
     exportBackup, importBackup,

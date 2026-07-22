@@ -77,6 +77,15 @@ button, input, select {
 
 /* ---- home ---- */
 
+.home-version {
+  text-align: right;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+  margin-bottom: 6px;
+}
+
 .month-glance {
   background: var(--accent);
   color: #fff;
