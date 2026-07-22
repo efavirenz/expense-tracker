@@ -221,6 +221,7 @@ textarea {
 .expense-row:active { background: var(--accent-soft); }
 .expense-row__main { display: flex; flex-direction: column; gap: 2px; }
 .expense-row__cat { font-weight: 600; font-size: 15px; }
+.expense-row__merchant { font-weight: 400; color: var(--text-muted); }
 .expense-row__date { font-size: 13px; color: var(--text-muted); }
 .expense-row__note {
   font-size: 12px;

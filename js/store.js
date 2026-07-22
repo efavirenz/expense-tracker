@@ -4,7 +4,8 @@
 
 const STORAGE_KEYS = {
   categories: 'expenseApp_categories_v1',
-  expenses:   'expenseApp_expenses_v1'
+  expenses:   'expenseApp_expenses_v1',
+  merchants:  'expenseApp_merchants_v1'
 };
 
 const RESERVED_CATEGORY = '[Removed]';
@@ -13,9 +14,15 @@ const RESERVED_CATEGORY = '[Removed]';
 const LEGACY_RESERVED_CATEGORY = 'Removed';
 
 const DEFAULT_CATEGORIES = [
-  'Fees', 'Travel', 'Household', 'Clothing', 'Eat out',
-  'Food & Drink', 'Transportation', 'Utilities', 'Shopping'
+  '7-11🏪', 'Clothing🧥', 'Dining out🍽️', 'Education📚', 'Entertainment🎬',
+  'Food & Drink🍔', 'Gifts & Donations🎁', 'Groceries🛒', 'Healthcare🩺',
+  'Household🏠', 'Investment💰', 'Other📦', 'Personal care🧴', 'Shopping🛍️',
+  'Skincare🌟', 'Supplements💊', 'Transportation🚗', 'Travel✈️', 'Utilities💡'
 ];
+
+// Seed merchants for the free-text merchant/sub-category field (autocomplete
+// only — not a fixed list, users can type anything and it gets remembered).
+const DEFAULT_MERCHANTS = ['Lazada', 'Shopee'];
 
 const Store = (function () {
 
@@ -41,6 +48,9 @@ const Store = (function () {
     }
     if (localStorage.getItem(STORAGE_KEYS.expenses) === null) {
       writeJSON(STORAGE_KEYS.expenses, []);
+    }
+    if (localStorage.getItem(STORAGE_KEYS.merchants) === null) {
+      writeJSON(STORAGE_KEYS.merchants, DEFAULT_MERCHANTS.slice());
     }
     migrateLegacyRemovedCategory();
   }
@@ -146,6 +156,26 @@ const Store = (function () {
     return getCategories();
   }
 
+  // ---------- Merchants (free-text sub-category, not a fixed list) ----------
+  // Merchant is a plain string on each expense record. This list only powers
+  // the <datalist> autocomplete — it is not validated against on save.
+
+  function getMerchants() {
+    const list = readJSON(STORAGE_KEYS.merchants, DEFAULT_MERCHANTS.slice());
+    return list.slice().sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+  }
+
+  function rememberMerchant(rawName) {
+    const name = (rawName || '').trim();
+    if (!name) return;
+    const merchants = readJSON(STORAGE_KEYS.merchants, DEFAULT_MERCHANTS.slice());
+    const exists = merchants.some(m => m.toLowerCase() === name.toLowerCase());
+    if (!exists) {
+      merchants.push(name);
+      writeJSON(STORAGE_KEYS.merchants, merchants);
+    }
+  }
+
   // ---------- Expenses ----------
 
   function getExpenses() {
@@ -161,7 +191,7 @@ const Store = (function () {
     return { ok: true, value: Math.round(amount * 100) / 100 };
   }
 
-  function addExpense({ date, amount, category, note }) {
+  function addExpense({ date, amount, category, merchant, note }) {
     const amt = validateAmount(amount);
     if (!amt.ok) return amt;
     if (!date) return { ok: false, error: 'กรุณาเลือกวันที่' };
@@ -169,20 +199,23 @@ const Store = (function () {
       return { ok: false, error: 'กรุณาเลือกหมวดหมู่' };
     }
     const expenses = getExpenses();
+    const merchantName = (merchant || '').trim();
     const record = {
       id: makeId(),
       date,
       amount: amt.value,
       category,
+      merchant: merchantName,
       note: (note || '').trim(),
       createdAt: new Date().toISOString()
     };
     expenses.push(record);
     writeJSON(STORAGE_KEYS.expenses, expenses);
+    if (merchantName) rememberMerchant(merchantName);
     return { ok: true, record };
   }
 
-  function updateExpense(id, { date, amount, category, note }) {
+  function updateExpense(id, { date, amount, category, merchant, note }) {
     const amt = validateAmount(amount);
     if (!amt.ok) return amt;
     if (!date) return { ok: false, error: 'กรุณาเลือกวันที่' };
@@ -190,8 +223,10 @@ const Store = (function () {
     const expenses = getExpenses();
     const idx = expenses.findIndex(e => e.id === id);
     if (idx === -1) return { ok: false, error: 'ไม่พบรายการนี้' };
-    expenses[idx] = { ...expenses[idx], date, amount: amt.value, category, note: (note || '').trim() };
+    const merchantName = (merchant || '').trim();
+    expenses[idx] = { ...expenses[idx], date, amount: amt.value, category, merchant: merchantName, note: (note || '').trim() };
     writeJSON(STORAGE_KEYS.expenses, expenses);
+    if (merchantName) rememberMerchant(merchantName);
     return { ok: true };
   }
 
@@ -248,7 +283,7 @@ const Store = (function () {
   // Itemized, one-row-per-expense CSV (includes Note). Sorted oldest-to-newest
   // so it reads like a ledger rather than the newest-first order used on screen.
   function expensesToCSV(expenseList) {
-    const lines = ['Date,Category,Amount (THB),Note'];
+    const lines = ['Date,Category,Merchant,Amount (THB),Note'];
     const sorted = expenseList.slice().sort((a, b) => {
       if (a.date !== b.date) return a.date.localeCompare(b.date);
       return (a.createdAt || '').localeCompare(b.createdAt || '');
@@ -257,6 +292,7 @@ const Store = (function () {
       lines.push([
         csvEscape(e.date),
         csvEscape(e.category),
+        csvEscape(e.merchant || ''),
         e.amount.toFixed(2),
         csvEscape(e.note || '')
       ].join(','));
@@ -269,9 +305,10 @@ const Store = (function () {
   function exportBackup() {
     const payload = {
       app: 'expense-tracker-pwa',
-      version: 1,
+      version: 2,
       exportedAt: new Date().toISOString(),
       categories: getCategories(),
+      merchants: getMerchants(),
       expenses: getExpenses()
     };
     return JSON.stringify(payload, null, 2);
@@ -297,14 +334,33 @@ const Store = (function () {
       return { ok: false, error: 'พบข้อมูลรายการที่ไม่ถูกต้องในไฟล์' };
     }
     writeJSON(STORAGE_KEYS.categories, data.categories);
-    writeJSON(STORAGE_KEYS.expenses, data.expenses.map(e => ({
+    const expenses = data.expenses.map(e => ({
       id: e.id || makeId(),
       date: e.date,
       amount: e.amount,
       category: e.category,
+      merchant: typeof e.merchant === 'string' ? e.merchant : '',
       note: typeof e.note === 'string' ? e.note : '',
       createdAt: e.createdAt || new Date().toISOString()
-    })));
+    }));
+    writeJSON(STORAGE_KEYS.expenses, expenses);
+
+    // Rebuild the merchant autocomplete list: whatever the backup explicitly
+    // shipped (data.merchants, if present) plus every merchant actually used
+    // on an expense, deduped case-insensitively. Backups from before the
+    // merchant field existed simply produce an empty list here, which is fine.
+    const seen = new Set();
+    const mergedMerchants = [];
+    const candidateMerchants = (Array.isArray(data.merchants) ? data.merchants : [])
+      .concat(expenses.map(e => e.merchant));
+    candidateMerchants.forEach(m => {
+      const name = (m || '').trim();
+      if (!name) return;
+      const key = name.toLowerCase();
+      if (!seen.has(key)) { seen.add(key); mergedMerchants.push(name); }
+    });
+    writeJSON(STORAGE_KEYS.merchants, mergedMerchants);
+
     return { ok: true };
   }
 
@@ -312,6 +368,7 @@ const Store = (function () {
     init,
     todayISO, currentMonthISO,
     getCategories, addCategory, renameCategory, deleteCategory, getSelectableCategories, categoryExists,
+    getMerchants, rememberMerchant,
     getExpenses, addExpense, updateExpense, deleteExpense, getExpensesForMonth, getExpensesInRange,
     summarizeByCategory, grandTotal, summaryToCSV, expensesToCSV,
     exportBackup, importBackup,

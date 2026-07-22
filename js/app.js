@@ -88,6 +88,11 @@ function categoryOptionsHtml(selected, includeExtra) {
   return opts.join('');
 }
 
+function merchantDatalistHtml() {
+  const merchants = Store.getMerchants();
+  return `<datalist id="merchantList">${merchants.map(m => `<option value="${escapeHtml(m)}">`).join('')}</datalist>`;
+}
+
 function renderSummaryTable(rows, total) {
   if (rows.length === 0) {
     return `<div class="empty-state">No expenses in this period.</div>`;
@@ -183,6 +188,11 @@ const Screens = {
             <select id="expCategory" required>${categoryOptionsHtml('')}</select>
           </label>
           <label class="field">
+            <span class="field__label">Merchant (optional)</span>
+            <input type="text" id="expMerchant" list="merchantList" placeholder="e.g. Shopee, Lazada&hellip;" autocomplete="off">
+          </label>
+          ${merchantDatalistHtml()}
+          <label class="field">
             <span class="field__label">Note (optional)</span>
             <textarea id="expNote" rows="2" placeholder="Add a note&hellip;"></textarea>
           </label>
@@ -197,8 +207,9 @@ const Screens = {
           const date = isToday ? today : document.getElementById('expDate').value;
           const amount = document.getElementById('expAmount').value;
           const category = document.getElementById('expCategory').value;
+          const merchant = document.getElementById('expMerchant').value;
           const note = document.getElementById('expNote').value;
-          const res = Store.addExpense({ date, amount, category, note });
+          const res = Store.addExpense({ date, amount, category, merchant, note });
           if (!res.ok) { showFormError(res.error); return; }
           showToast('Expense saved.');
           goHome();
@@ -331,7 +342,7 @@ const Screens = {
           ${items.map(e => `
             <li class="expense-row" data-action="nav" data-view="expenseEdit" data-id="${e.id}">
               <div class="expense-row__main">
-                <span class="expense-row__cat">${escapeHtml(e.category)}</span>
+                <span class="expense-row__cat">${escapeHtml(e.category)}${e.merchant ? ` <span class="expense-row__merchant">&middot; ${escapeHtml(e.merchant)}</span>` : ''}</span>
                 <span class="expense-row__date">${formatDateDisplay(e.date)}</span>
                 ${e.note ? `<span class="expense-row__note">${escapeHtml(e.note)}</span>` : ''}
               </div>
@@ -370,6 +381,11 @@ const Screens = {
             <select id="editCategory" required>${categoryOptionsHtml(record.category, record.category)}</select>
           </label>
           <label class="field">
+            <span class="field__label">Merchant (optional)</span>
+            <input type="text" id="editMerchant" list="merchantList" value="${escapeHtml(record.merchant || '')}" placeholder="e.g. Shopee, Lazada&hellip;" autocomplete="off">
+          </label>
+          ${merchantDatalistHtml()}
+          <label class="field">
             <span class="field__label">Note (optional)</span>
             <textarea id="editNote" rows="2" placeholder="Add a note&hellip;">${escapeHtml(record.note || '')}</textarea>
           </label>
@@ -384,8 +400,9 @@ const Screens = {
           const date = document.getElementById('editDate').value;
           const amount = document.getElementById('editAmount').value;
           const category = document.getElementById('editCategory').value;
+          const merchant = document.getElementById('editMerchant').value;
           const note = document.getElementById('editNote').value;
-          const res = Store.updateExpense(record.id, { date, amount, category, note });
+          const res = Store.updateExpense(record.id, { date, amount, category, merchant, note });
           if (!res.ok) { showFormError(res.error); return; }
           showToast('Expense updated.');
           goBack();
@@ -407,8 +424,11 @@ const Screens = {
       back: true,
       html: `
         <nav class="menu-list">
-          <button class="menu-item" data-action="nav" data-view="periodChoice" data-mode="display">
-            <span>Just Display</span><span class="chev">&#8250;</span>
+          <button class="menu-item" data-action="currentMonth" data-mode="display">
+            <span>Display Current Month</span><span class="chev">&#8250;</span>
+          </button>
+          <button class="menu-item" data-action="nav" data-view="rangePicker" data-mode="display">
+            <span>Display Period&hellip;</span><span class="chev">&#8250;</span>
           </button>
           <button class="menu-item" data-action="nav" data-view="periodChoice" data-mode="csv">
             <span>Save to CSV</span><span class="chev">&#8250;</span>
@@ -419,7 +439,7 @@ const Screens = {
 
   periodChoice(p) {
     return {
-      title: p.mode === 'csv' ? 'Save to CSV' : 'Just Display',
+      title: 'Save to CSV',
       back: true,
       html: `
         <nav class="menu-list">
