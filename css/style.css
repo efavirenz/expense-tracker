@@ -278,6 +278,16 @@ textarea {
   font-family: var(--font-num);
   font-variant-numeric: tabular-nums;
 }
+.summary-table__cat-row td { font-weight: 600; }
+.summary-table__merchant-row td {
+  padding-top: 6px;
+  padding-bottom: 6px;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+.summary-table__merchant-name { padding-left: 30px; }
+.summary-table__merchant-name--empty { font-style: italic; }
 .summary-table tfoot th {
   border-bottom: none;
   border-top: 2px solid var(--border);

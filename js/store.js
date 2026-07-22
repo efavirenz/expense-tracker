@@ -13,6 +13,11 @@ const RESERVED_CATEGORY = '[Removed]';
 // rename) can be migrated on load — see migrateLegacyRemovedCategory().
 const LEGACY_RESERVED_CATEGORY = 'Removed';
 
+// Bucket label used to group expenses with a blank merchant field when
+// summarizing by category + merchant. Not stored on expenses themselves —
+// e.merchant stays '' on disk, this is purely a display grouping.
+const NO_MERCHANT_LABEL = '(No merchant)';
+
 const DEFAULT_CATEGORIES = [
   '7-11🏪', 'Clothing🧥', 'Dining out🍽️', 'Education📚', 'Entertainment🎬',
   'Food & Drink🍔', 'Gifts & Donations🎁', 'Groceries🛒', 'Healthcare🩺',
@@ -315,6 +320,29 @@ const Store = (function () {
       .map(cat => ({ category: cat, total: Math.round(totals[cat] * 100) / 100 }));
   }
 
+  // Same category totals as summarizeByCategory, but each row also carries a
+  // `merchants` array — that category's expenses grouped by merchant and
+  // sorted by total (desc), with blank merchants bucketed under
+  // NO_MERCHANT_LABEL. Used by both the Display screen and the Category
+  // Summary CSV so the two stay in sync.
+  function summarizeByCategoryAndMerchant(expenseList) {
+    const catRows = summarizeByCategory(expenseList);
+    const merchantTotalsByCat = {};
+    expenseList.forEach(e => {
+      const merchantKey = (e.merchant || '').trim() || NO_MERCHANT_LABEL;
+      if (!merchantTotalsByCat[e.category]) merchantTotalsByCat[e.category] = {};
+      merchantTotalsByCat[e.category][merchantKey] =
+        (merchantTotalsByCat[e.category][merchantKey] || 0) + e.amount;
+    });
+    return catRows.map(catRow => {
+      const merchantTotals = merchantTotalsByCat[catRow.category] || {};
+      const merchants = Object.keys(merchantTotals)
+        .sort((a, b) => merchantTotals[b] - merchantTotals[a])
+        .map(m => ({ merchant: m, total: Math.round(merchantTotals[m] * 100) / 100 }));
+      return { category: catRow.category, total: catRow.total, merchants };
+    });
+  }
+
   function grandTotal(expenseList) {
     return Math.round(expenseList.reduce((s, e) => s + e.amount, 0) * 100) / 100;
   }
@@ -327,10 +355,17 @@ const Store = (function () {
     return s;
   }
 
+  // One row per category (Category filled in, Merchant blank) followed by
+  // one row per merchant within that category (Category left blank so it
+  // reads as a nested group when opened in a spreadsheet, Merchant filled
+  // in). Takes the nested rows from summarizeByCategoryAndMerchant.
   function summaryToCSV(summaryRows) {
-    const lines = ['Category,Total (THB)'];
+    const lines = ['Category,Merchant,Total (THB)'];
     summaryRows.forEach(r => {
-      lines.push(`${csvEscape(r.category)},${r.total.toFixed(2)}`);
+      lines.push(`${csvEscape(r.category)},,${r.total.toFixed(2)}`);
+      r.merchants.forEach(m => {
+        lines.push(`,${csvEscape(m.merchant)},${m.total.toFixed(2)}`);
+      });
     });
     return lines.join('\n');
   }
@@ -425,8 +460,8 @@ const Store = (function () {
     getCategories, addCategory, renameCategory, deleteCategory, getSelectableCategories, categoryExists,
     getMerchants, rememberMerchant, merchantExists, addMerchant, renameMerchant, deleteMerchant,
     getExpenses, addExpense, updateExpense, deleteExpense, getExpensesForMonth, getExpensesInRange,
-    summarizeByCategory, grandTotal, summaryToCSV, expensesToCSV,
+    summarizeByCategory, summarizeByCategoryAndMerchant, grandTotal, summaryToCSV, expensesToCSV,
     exportBackup, importBackup,
-    RESERVED_CATEGORY
+    RESERVED_CATEGORY, NO_MERCHANT_LABEL
   };
 })();

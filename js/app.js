@@ -4,7 +4,7 @@
 
 Store.init();
 
-const APP_VERSION = 'V3';
+const APP_VERSION = 'V4';
 
 const appEl = document.getElementById('app');
 const titleEl = document.getElementById('pageTitle');
@@ -99,11 +99,19 @@ function renderSummaryTable(rows, total) {
   if (rows.length === 0) {
     return `<div class="empty-state">No expenses in this period.</div>`;
   }
-  const body = rows.map(r => `
-    <tr>
+  const body = rows.map(r => {
+    const catRow = `
+    <tr class="summary-table__cat-row">
       <td>${escapeHtml(r.category)}</td>
       <td class="num">${formatTHB(r.total)}</td>
+    </tr>`;
+    const merchantRows = r.merchants.map(m => `
+    <tr class="summary-table__merchant-row">
+      <td class="summary-table__merchant-name ${m.merchant === Store.NO_MERCHANT_LABEL ? 'summary-table__merchant-name--empty' : ''}">${escapeHtml(m.merchant)}</td>
+      <td class="num">${formatTHB(m.total)}</td>
     </tr>`).join('');
+    return catRow + merchantRows;
+  }).join('');
   return `
     <table class="summary-table">
       <thead><tr><th>Category</th><th class="num">Total</th></tr></thead>
@@ -603,7 +611,7 @@ const Screens = {
 
   summaryResult(p) {
     const items = Store.getExpensesInRange(p.start, p.end);
-    const rows = Store.summarizeByCategory(items);
+    const rows = Store.summarizeByCategoryAndMerchant(items);
     const total = Store.grandTotal(items);
     return {
       title: 'Category Summary',
@@ -684,7 +692,7 @@ function exportCSVForRange(start, end, csvType) {
   const items = Store.getExpensesInRange(start, end);
   const label = `${start}_to_${end}`;
   if (csvType === 'summary' || csvType === 'both') {
-    const rows = Store.summarizeByCategory(items);
+    const rows = Store.summarizeByCategoryAndMerchant(items);
     downloadTextFile(`expenses_summary_${label}.csv`, 'text/csv', Store.summaryToCSV(rows));
   }
   if (csvType === 'detailed' || csvType === 'both') {

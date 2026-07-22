@@ -84,6 +84,23 @@ Two things were added during planning review, both agreed on beforehand:
 
 ## Changelog
 
+**v4 — Merchant breakdown in Category Summary**
+- The Category Summary **Display** screen now nests a merchant breakdown
+  under each category: the category's total on its own row, then one
+  indented row per merchant showing that merchant's share of the category.
+  Expenses with a blank merchant are grouped under **(No merchant)**.
+- The **Category Summary CSV** export gained a `Merchant` column with the
+  same nesting: a totals row per category (`Merchant` blank), followed by
+  one row per merchant (`Category` blank, so it reads as a group when
+  opened in a spreadsheet). The Detailed Expense List CSV already had a
+  Merchant column and is unchanged.
+- Added `Store.summarizeByCategoryAndMerchant`, which reuses
+  `summarizeByCategory` for the category totals and layers a merchant
+  breakdown on top, so Display and CSV can never drift out of sync with
+  each other.
+- Home screen version tag bumped to **V4**; service worker cache bumped to
+  `v6`.
+
 **v3 — Merchant management & menu reorg**
 - *Edit Category* renamed to **Edit Category / Merchant**, and moved on the
   home screen to sit directly above **Backup & Restore** (was previously
