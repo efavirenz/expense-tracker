@@ -155,11 +155,8 @@ const Screens = {
           <span class="month-glance__value">${formatTHB(monthTotal)}</span>
         </div>
         <nav class="menu-list">
-          <button class="menu-item" data-action="nav" data-view="addExpense" data-mode="today">
-            <span>Add Today's Expense</span><span class="chev">&#8250;</span>
-          </button>
-          <button class="menu-item" data-action="nav" data-view="addExpense" data-mode="other">
-            <span>Add Expense (Other Day)</span><span class="chev">&#8250;</span>
+          <button class="menu-item" data-action="nav" data-view="addExpense">
+            <span>Add Expense</span><span class="chev">&#8250;</span>
           </button>
           <button class="menu-item" data-action="nav" data-view="expensesList" data-month="${month}">
             <span>View / Edit Expenses</span><span class="chev">&#8250;</span>
@@ -178,19 +175,16 @@ const Screens = {
   },
 
   addExpense(p) {
-    const isToday = p.mode === 'today';
     const today = Store.todayISO();
     return {
-      title: isToday ? "Add Today's Expense" : 'Add Expense',
+      title: 'Add Expense',
       back: true,
       html: `
         <form class="form" id="expenseForm">
           <div id="formError" class="form-error" hidden></div>
           <label class="field">
             <span class="field__label">Date</span>
-            ${isToday
-              ? `<div class="field__static">${formatDateDisplay(today)}</div>`
-              : `<input type="date" id="expDate" value="${today}" max="${today}" required>`}
+            <input type="date" id="expDate" value="${today}" max="${today}" required>
           </label>
           <label class="field">
             <span class="field__label">Expense (THB)</span>
@@ -217,7 +211,7 @@ const Screens = {
       afterRender() {
         document.getElementById('expenseForm').addEventListener('submit', (e) => {
           e.preventDefault();
-          const date = isToday ? today : document.getElementById('expDate').value;
+          const date = document.getElementById('expDate').value;
           const amount = document.getElementById('expAmount').value;
           const category = document.getElementById('expCategory').value;
           const merchant = document.getElementById('expMerchant').value;
