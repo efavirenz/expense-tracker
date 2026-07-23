@@ -73,6 +73,13 @@ Two things were added during planning review, both agreed on beforehand:
 
 ## Changelog
 
+**v6 — Search expenses, top card theme & home search shortcut**
+- Added Search Expenses feature (🔍 button on top right of home screen and View / Edit Expenses screen).
+- Search allows filtering by month range (From / To month pickers) and searching text across 4 fields: category, merchant, note, and amount.
+- Tapping search result navigates directly to expense edit screen.
+- Updated top homepage summary card background color to `#5C9514` with `#E2FECD` font color.
+- Home screen version tag bumped to **V6**; service worker cache bumped to `v8`.
+
 **v5 — Summary display formatting, toggle & theme update**
 - Renamed *Category Summary* menu to **Summary**.
 - Updated Summary result view: merchant names are indented by 3 space characters, and 3 space characters follow each merchant's total number.

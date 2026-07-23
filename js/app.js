@@ -4,11 +4,12 @@
 
 Store.init();
 
-const APP_VERSION = 'V5';
+const APP_VERSION = 'V6';
 
 const appEl = document.getElementById('app');
 const titleEl = document.getElementById('pageTitle');
 const backBtn = document.getElementById('backBtn');
+const searchBtn = document.getElementById('searchBtn');
 const toastEl = document.getElementById('toast');
 const modalRoot = document.getElementById('modalRoot');
 
@@ -476,6 +477,91 @@ const Screens = {
     };
   },
 
+  searchExpenses(p) {
+    const curr = Store.currentMonthISO();
+    const [y, m] = curr.split('-').map(Number);
+    const startDate = new Date(y, m - 1 - 5, 1);
+    const defaultStart = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}`;
+
+    const startMonth = p.startMonth || defaultStart;
+    const endMonth = p.endMonth || curr;
+    const query = p.query || '';
+
+    return {
+      title: 'Search Expenses',
+      back: true,
+      html: `
+        <div class="search-panel">
+          <div class="search-range">
+            <label class="field">
+              <span class="field__label">From Month</span>
+              <input type="month" id="searchStartMonth" value="${startMonth}">
+            </label>
+            <label class="field">
+              <span class="field__label">To Month</span>
+              <input type="month" id="searchEndMonth" value="${endMonth}">
+            </label>
+          </div>
+          <label class="field">
+            <span class="field__label">Search Text</span>
+            <input type="text" id="searchInput" value="${escapeHtml(query)}" placeholder="Category, merchant, note, amount&hellip;" autofocus autocomplete="off">
+          </label>
+        </div>
+        <div id="searchResultsContainer"></div>`,
+      afterRender() {
+        const startInput = document.getElementById('searchStartMonth');
+        const endInput = document.getElementById('searchEndMonth');
+        const qInput = document.getElementById('searchInput');
+        const resultsContainer = document.getElementById('searchResultsContainer');
+
+        function renderResults() {
+          const sm = startInput.value;
+          const em = endInput.value;
+          const q = qInput.value;
+          topScreen().startMonth = sm;
+          topScreen().endMonth = em;
+          topScreen().query = q;
+
+          if (!q.trim()) {
+            resultsContainer.innerHTML = `<div class="empty-state">Enter text to search expenses.</div>`;
+            return;
+          }
+
+          if (sm && em && sm > em) {
+            resultsContainer.innerHTML = `<div class="form-error">"From Month" must be before or equal to "To Month".</div>`;
+            return;
+          }
+
+          const results = Store.searchExpenses(sm, em, q);
+          if (results.length === 0) {
+            resultsContainer.innerHTML = `<div class="empty-state">No matching expenses found.</div>`;
+            return;
+          }
+
+          resultsContainer.innerHTML = `
+            <div class="search-results-info">Found ${results.length} item${results.length === 1 ? '' : 's'}</div>
+            <ul class="expense-list">
+              ${results.map(e => `
+                <li class="expense-row" data-action="nav" data-view="expenseEdit" data-id="${e.id}">
+                  <div class="expense-row__main">
+                    <span class="expense-row__cat">${escapeHtml(e.category)}${e.merchant ? ` <span class="expense-row__merchant">&middot; ${escapeHtml(e.merchant)}</span>` : ''}</span>
+                    <span class="expense-row__date">${formatDateDisplay(e.date)}</span>
+                    ${e.note ? `<span class="expense-row__note">${escapeHtml(e.note)}</span>` : ''}
+                  </div>
+                  <span class="expense-row__amt">${formatTHB(e.amount)}</span>
+                </li>`).join('')}
+            </ul>`;
+        }
+
+        startInput.addEventListener('change', renderResults);
+        endInput.addEventListener('change', renderResults);
+        qInput.addEventListener('input', renderResults);
+
+        renderResults();
+      }
+    };
+  },
+
   expenseEdit(p) {
     const record = Store.getExpenses().find(e => e.id === p.id);
     if (!record) {
@@ -792,6 +878,13 @@ appEl.addEventListener('click', (e) => {
 });
 
 backBtn.addEventListener('click', goBack);
+if (searchBtn) {
+  searchBtn.addEventListener('click', () => {
+    const currentScreen = topScreen();
+    const currentMonth = currentScreen.month || Store.currentMonthISO();
+    navigate('searchExpenses', { startMonth: currentMonth, endMonth: Store.currentMonthISO() });
+  });
+}
 
 /* ---------------- render loop ---------------- */
 
@@ -800,6 +893,7 @@ function render() {
   const screen = Screens[screenState.view](screenState);
   titleEl.textContent = screen.title;
   backBtn.hidden = !screen.back;
+  if (searchBtn) searchBtn.hidden = (screenState.view !== 'expensesList' && screenState.view !== 'home');
   appEl.innerHTML = screen.html;
   if (screen.afterRender) screen.afterRender();
   appEl.scrollTop = 0;

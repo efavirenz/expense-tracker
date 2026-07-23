@@ -309,6 +309,22 @@ const Store = (function () {
       .sort((a, b) => b.date.localeCompare(a.date));
   }
 
+  function searchExpenses(startMonth, endMonth, query) {
+    const q = (query || '').trim().toLowerCase();
+    if (!q) return [];
+    return getExpenses()
+      .filter(e => {
+        const month = e.date.slice(0, 7);
+        if (startMonth && month < startMonth) return false;
+        if (endMonth && month > endMonth) return false;
+        return e.category.toLowerCase().includes(q)
+            || (e.merchant || '').toLowerCase().includes(q)
+            || (e.note || '').toLowerCase().includes(q)
+            || String(e.amount).includes(q);
+      })
+      .sort((a, b) => b.date.localeCompare(a.date));
+  }
+
   // ---------- Summaries ----------
 
   function summarizeByCategory(expenseList) {
@@ -468,7 +484,7 @@ const Store = (function () {
     todayISO, currentMonthISO,
     getCategories, addCategory, renameCategory, deleteCategory, getSelectableCategories, categoryExists,
     getMerchants, rememberMerchant, merchantExists, addMerchant, renameMerchant, deleteMerchant,
-    getExpenses, addExpense, updateExpense, deleteExpense, getExpensesForMonth, getExpensesInRange,
+    getExpenses, addExpense, updateExpense, deleteExpense, getExpensesForMonth, getExpensesInRange, searchExpenses,
     summarizeByCategory, summarizeByCategoryAndMerchant, grandTotal, summaryToCSV, expensesToCSV,
     exportBackup, importBackup, getShowMerchants, setShowMerchants,
     RESERVED_CATEGORY, NO_MERCHANT_LABEL

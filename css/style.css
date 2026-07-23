@@ -67,6 +67,42 @@ button, input, select {
   font-weight: 700;
   margin: 0;
   letter-spacing: -0.01em;
+  flex: 1;
+}
+
+.search-btn {
+  border: none;
+  background: none;
+  font-size: 20px;
+  line-height: 1;
+  padding: 4px 0 4px 6px;
+  cursor: pointer;
+}
+
+.search-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+}
+
+.search-range {
+  display: flex;
+  gap: 10px;
+}
+
+.search-range .field {
+  flex: 1;
+}
+
+.search-results-info {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 10px;
 }
 
 .app-main {
@@ -87,8 +123,8 @@ button, input, select {
 }
 
 .month-glance {
-  background: #00FFF2;
-  color: #1C1C1E;
+  background: #5C9514;
+  color: #E2FECD;
   border-radius: var(--radius);
   padding: 18px 20px;
   margin-bottom: 18px;
@@ -98,7 +134,7 @@ button, input, select {
 }
 .month-glance__label {
   font-size: 13px;
-  color: #262626;
+  color: #E2FECD;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -108,7 +144,7 @@ button, input, select {
   font-size: 28px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-  color: #1C1C1E;
+  color: #E2FECD;
 }
 
 /* ---- menu list ---- */
