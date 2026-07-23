@@ -1,4 +1,4 @@
-const CACHE_NAME = 'expense-tracker-v8';
+const CACHE_NAME = 'expense-tracker-v9';
 const APP_SHELL = [
   './',
   './index.html',
@@ -26,7 +26,7 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Cache-first for app shell, network-first fallback for everything else same-origin.
+// Stale-While-Revalidate strategy for same-origin GET requests
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   const url = new URL(event.request.url);
@@ -34,14 +34,15 @@ self.addEventListener('fetch', (event) => {
 
   event.respondWith(
     caches.match(event.request).then((cached) => {
-      if (cached) return cached;
-      return fetch(event.request)
-        .then((response) => {
-          const copy = response.clone();
+      const fetchPromise = fetch(event.request).then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200) {
+          const copy = networkResponse.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
-          return response;
-        })
-        .catch(() => cached);
+        }
+        return networkResponse;
+      }).catch(() => null);
+
+      return cached || fetchPromise.then(netRes => netRes || new Response('Offline', { status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8' } }));
     })
   );
 });

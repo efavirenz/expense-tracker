@@ -10,13 +10,7 @@ const STORAGE_KEYS = {
 };
 
 const RESERVED_CATEGORY = '[Removed]';
-// Old reserved-category label, kept only so existing data (saved before this
-// rename) can be migrated on load — see migrateLegacyRemovedCategory().
 const LEGACY_RESERVED_CATEGORY = 'Removed';
-
-// Bucket label used to group expenses with a blank merchant field when
-// summarizing by category + merchant. Not stored on expenses themselves —
-// e.merchant stays '' on disk, this is purely a display grouping.
 const NO_MERCHANT_LABEL = '(No merchant)';
 
 const DEFAULT_CATEGORIES = [
@@ -26,26 +20,48 @@ const DEFAULT_CATEGORIES = [
   'Skincare🌟', 'Supplements💊', 'Transportation🚗', 'Travel✈️', 'Utilities💡'
 ];
 
-// Seed merchants for the free-text merchant/sub-category field (autocomplete
-// only — not a fixed list, users can type anything and it gets remembered).
 const DEFAULT_MERCHANTS = ['Lazada', 'Shopee'];
 
 const Store = (function () {
+  const cache = {};
 
   function readJSON(key, fallback) {
+    if (cache[key] !== undefined) return cache[key];
     try {
       const raw = localStorage.getItem(key);
-      if (raw === null) return fallback;
+      if (raw === null) {
+        cache[key] = fallback;
+        return fallback;
+      }
       const parsed = JSON.parse(raw);
-      return parsed === null || parsed === undefined ? fallback : parsed;
+      const val = (parsed === null || parsed === undefined) ? fallback : parsed;
+      cache[key] = val;
+      return val;
     } catch (e) {
       console.error('Store read error for', key, e);
+      cache[key] = fallback;
       return fallback;
     }
   }
 
   function writeJSON(key, value) {
-    localStorage.setItem(key, JSON.stringify(value));
+    cache[key] = value;
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+      return { ok: true };
+    } catch (e) {
+      console.error('Store write error for', key, e);
+      return { ok: false, error: 'หน่วยความจำเต็ม ไม่สามารถบันทึกข้อมูลได้ (Storage Quota Exceeded)' };
+    }
+  }
+
+  if (typeof window !== 'undefined') {
+    window.addEventListener('storage', (e) => {
+      if (e.key && cache[e.key] !== undefined) {
+        delete cache[e.key];
+        if (typeof window.onStoreUpdated === 'function') window.onStoreUpdated();
+      }
+    });
   }
 
   function init() {
@@ -61,8 +77,6 @@ const Store = (function () {
     migrateLegacyRemovedCategory();
   }
 
-  // One-time migration: expenses saved before the reserved category was
-  // renamed from "Removed" to "[Removed]" still carry the old label.
   function migrateLegacyRemovedCategory() {
     const expenses = getExpenses();
     let changed = false;
@@ -76,6 +90,14 @@ const Store = (function () {
   }
 
   function makeId() {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID();
+    }
+    if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+      const bytes = new Uint8Array(8);
+      crypto.getRandomValues(bytes);
+      return Date.now().toString(36) + '-' + Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+    }
     return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
   }
 
@@ -88,7 +110,7 @@ const Store = (function () {
   }
 
   function currentMonthISO() {
-    return todayISO().slice(0, 7); // YYYY-MM
+    return todayISO().slice(0, 7);
   }
 
   // ---------- Categories ----------
@@ -111,8 +133,7 @@ const Store = (function () {
     if (categoryExists(name)) return { ok: false, error: `มีหมวดหมู่ชื่อ "${name}" อยู่แล้ว` };
     const categories = getCategories();
     categories.push(name);
-    writeJSON(STORAGE_KEYS.categories, categories);
-    return { ok: true };
+    return writeJSON(STORAGE_KEYS.categories, categories);
   }
 
   function renameCategory(oldName, rawNewName) {
@@ -129,15 +150,18 @@ const Store = (function () {
     const idx = categories.findIndex(c => c === oldName);
     if (idx === -1) return { ok: false, error: 'ไม่พบหมวดหมู่นี้' };
     categories[idx] = newName;
-    writeJSON(STORAGE_KEYS.categories, categories);
+    const res1 = writeJSON(STORAGE_KEYS.categories, categories);
+    if (!res1.ok) return res1;
 
-    // cascade to historical expenses
     const expenses = getExpenses();
     let changed = false;
     expenses.forEach(e => {
       if (e.category === oldName) { e.category = newName; changed = true; }
     });
-    if (changed) writeJSON(STORAGE_KEYS.expenses, expenses);
+    if (changed) {
+      const res2 = writeJSON(STORAGE_KEYS.expenses, expenses);
+      if (!res2.ok) return res2;
+    }
 
     return { ok: true };
   }
@@ -145,29 +169,27 @@ const Store = (function () {
   function deleteCategory(name) {
     if (name === RESERVED_CATEGORY) return { ok: false, error: 'ไม่สามารถลบหมวดหมู่นี้ได้' };
     const categories = getCategories().filter(c => c !== name);
-    writeJSON(STORAGE_KEYS.categories, categories);
+    const res1 = writeJSON(STORAGE_KEYS.categories, categories);
+    if (!res1.ok) return res1;
 
     const expenses = getExpenses();
     let changed = false;
     expenses.forEach(e => {
       if (e.category === name) { e.category = RESERVED_CATEGORY; changed = true; }
     });
-    if (changed) writeJSON(STORAGE_KEYS.expenses, expenses);
+    if (changed) {
+      const res2 = writeJSON(STORAGE_KEYS.expenses, expenses);
+      if (!res2.ok) return res2;
+    }
 
     return { ok: true };
   }
 
-  // Categories selectable when adding/editing an expense (Removed is hidden)
   function getSelectableCategories() {
     return getCategories();
   }
 
-  // ---------- Merchants (free-text sub-category, not a fixed list) ----------
-  // Merchant is a plain string on each expense record, so it is still NOT
-  // validated against this list on save (typing a brand-new merchant on the
-  // expense form works exactly as before, via rememberMerchant). The list is
-  // now also directly manageable — Add/Rename/Delete Merchant — the same way
-  // categories are, for tidying up the autocomplete suggestions.
+  // ---------- Merchants ----------
 
   function getMerchants() {
     const list = readJSON(STORAGE_KEYS.merchants, DEFAULT_MERCHANTS.slice());
@@ -197,8 +219,7 @@ const Store = (function () {
     if (merchantExists(name)) return { ok: false, error: `มีร้านค้าชื่อ "${name}" อยู่แล้ว` };
     const merchants = getMerchants();
     merchants.push(name);
-    writeJSON(STORAGE_KEYS.merchants, merchants);
-    return { ok: true };
+    return writeJSON(STORAGE_KEYS.merchants, merchants);
   }
 
   function renameMerchant(oldName, rawNewName) {
@@ -214,27 +235,25 @@ const Store = (function () {
     const idx = merchants.findIndex(m => m === oldName);
     if (idx === -1) return { ok: false, error: 'ไม่พบร้านค้านี้' };
     merchants[idx] = newName;
-    writeJSON(STORAGE_KEYS.merchants, merchants);
+    const res1 = writeJSON(STORAGE_KEYS.merchants, merchants);
+    if (!res1.ok) return res1;
 
-    // cascade to historical expenses, same as renameCategory does
     const expenses = getExpenses();
     let changed = false;
     expenses.forEach(e => {
       if (e.merchant === oldName) { e.merchant = newName; changed = true; }
     });
-    if (changed) writeJSON(STORAGE_KEYS.expenses, expenses);
+    if (changed) {
+      const res2 = writeJSON(STORAGE_KEYS.expenses, expenses);
+      if (!res2.ok) return res2;
+    }
 
     return { ok: true };
   }
 
-  // Unlike deleteCategory, this never touches past expenses: merchant was
-  // never a required/validated field, so there is no "[Removed]" bucket to
-  // move orphaned records into. Deleting just removes the name from the
-  // autocomplete suggestion list going forward.
   function deleteMerchant(name) {
     const merchants = getMerchants().filter(m => m !== name);
-    writeJSON(STORAGE_KEYS.merchants, merchants);
-    return { ok: true };
+    return writeJSON(STORAGE_KEYS.merchants, merchants);
   }
 
   // ---------- Expenses ----------
@@ -248,7 +267,6 @@ const Store = (function () {
     if (isNaN(amount) || amount <= 0) {
       return { ok: false, error: 'จำนวนเงินต้องเป็นตัวเลขมากกว่า 0' };
     }
-    // round to 2 decimals (satang)
     return { ok: true, value: Math.round(amount * 100) / 100 };
   }
 
@@ -256,6 +274,7 @@ const Store = (function () {
     const amt = validateAmount(amount);
     if (!amt.ok) return amt;
     if (!date) return { ok: false, error: 'กรุณาเลือกวันที่' };
+    if (date > todayISO()) return { ok: false, error: 'วันที่ต้องไม่เป็นวันในอนาคต' };
     if (!category || category === RESERVED_CATEGORY) {
       return { ok: false, error: 'กรุณาเลือกหมวดหมู่' };
     }
@@ -271,7 +290,8 @@ const Store = (function () {
       createdAt: new Date().toISOString()
     };
     expenses.push(record);
-    writeJSON(STORAGE_KEYS.expenses, expenses);
+    const res = writeJSON(STORAGE_KEYS.expenses, expenses);
+    if (!res.ok) return res;
     if (merchantName) rememberMerchant(merchantName);
     return { ok: true, record };
   }
@@ -280,21 +300,22 @@ const Store = (function () {
     const amt = validateAmount(amount);
     if (!amt.ok) return amt;
     if (!date) return { ok: false, error: 'กรุณาเลือกวันที่' };
+    if (date > todayISO()) return { ok: false, error: 'วันที่ต้องไม่เป็นวันในอนาคต' };
     if (!category) return { ok: false, error: 'กรุณาเลือกหมวดหมู่' };
     const expenses = getExpenses();
     const idx = expenses.findIndex(e => e.id === id);
     if (idx === -1) return { ok: false, error: 'ไม่พบรายการนี้' };
     const merchantName = (merchant || '').trim();
     expenses[idx] = { ...expenses[idx], date, amount: amt.value, category, merchant: merchantName, note: (note || '').trim() };
-    writeJSON(STORAGE_KEYS.expenses, expenses);
+    const res = writeJSON(STORAGE_KEYS.expenses, expenses);
+    if (!res.ok) return res;
     if (merchantName) rememberMerchant(merchantName);
     return { ok: true };
   }
 
   function deleteExpense(id) {
     const expenses = getExpenses().filter(e => e.id !== id);
-    writeJSON(STORAGE_KEYS.expenses, expenses);
-    return { ok: true };
+    return writeJSON(STORAGE_KEYS.expenses, expenses);
   }
 
   function getExpensesForMonth(yyyyMm) {
@@ -337,11 +358,6 @@ const Store = (function () {
       .map(cat => ({ category: cat, total: Math.round(totals[cat] * 100) / 100 }));
   }
 
-  // Same category totals as summarizeByCategory, but each row also carries a
-  // `merchants` array — that category's expenses grouped by merchant and
-  // sorted by total (desc), with blank merchants bucketed under
-  // NO_MERCHANT_LABEL. Used by both the Display screen and the Category
-  // Summary CSV so the two stay in sync.
   function summarizeByCategoryAndMerchant(expenseList) {
     const catRows = summarizeByCategory(expenseList);
     const merchantTotalsByCat = {};
@@ -372,10 +388,6 @@ const Store = (function () {
     return s;
   }
 
-  // One row per category (Category filled in, Merchant blank) followed by
-  // one row per merchant within that category (Category left blank so it
-  // reads as a nested group when opened in a spreadsheet, Merchant filled
-  // in). Takes the nested rows from summarizeByCategoryAndMerchant.
   function summaryToCSV(summaryRows) {
     const lines = ['Category,Merchant,Total (THB)'];
     summaryRows.forEach(r => {
@@ -387,8 +399,6 @@ const Store = (function () {
     return lines.join('\n');
   }
 
-  // Itemized, one-row-per-expense CSV (includes Note). Sorted oldest-to-newest
-  // so it reads like a ledger rather than the newest-first order used on screen.
   function expensesToCSV(expenseList) {
     const lines = ['Date,Category,Merchant,Amount (THB),Note'];
     const sorted = expenseList.slice().sort((a, b) => {
@@ -428,34 +438,44 @@ const Store = (function () {
     } catch (e) {
       return { ok: false, error: 'ไฟล์ไม่ใช่ JSON ที่ถูกต้อง' };
     }
-    if (!data || !Array.isArray(data.categories) || !Array.isArray(data.expenses)) {
+    if (!data || data.app !== 'expense-tracker-pwa') {
+      return { ok: false, error: 'ไฟล์แอปพลิเคชันไม่ถูกต้อง (ต้องเป็น backup จาก Expense Tracker)' };
+    }
+    if (!Array.isArray(data.categories) || !Array.isArray(data.expenses)) {
       return { ok: false, error: 'โครงสร้างไฟล์ไม่ถูกต้อง (ต้องมี categories และ expenses)' };
     }
-    // light validation of expense records
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    const today = todayISO();
     const validExpenses = data.expenses.every(e =>
-      e && typeof e.date === 'string' &&
-      typeof e.amount === 'number' &&
-      typeof e.category === 'string'
+      e && typeof e.date === 'string' && dateRegex.test(e.date) && e.date <= today &&
+      typeof e.amount === 'number' && e.amount > 0 &&
+      typeof e.category === 'string' && e.category.trim() !== ''
     );
     if (!validExpenses) {
-      return { ok: false, error: 'พบข้อมูลรายการที่ไม่ถูกต้องในไฟล์' };
+      return { ok: false, error: 'พบข้อมูลรายการที่ไม่ถูกต้องในไฟล์ (เช่น วันในอนาคต หรือ จำนวนเงินติดลบ)' };
     }
-    writeJSON(STORAGE_KEYS.categories, data.categories);
-    const expenses = data.expenses.map(e => ({
-      id: e.id || makeId(),
-      date: e.date,
-      amount: e.amount,
-      category: e.category,
-      merchant: typeof e.merchant === 'string' ? e.merchant : '',
-      note: typeof e.note === 'string' ? e.note : '',
-      createdAt: e.createdAt || new Date().toISOString()
-    }));
-    writeJSON(STORAGE_KEYS.expenses, expenses);
 
-    // Rebuild the merchant autocomplete list: whatever the backup explicitly
-    // shipped (data.merchants, if present) plus every merchant actually used
-    // on an expense, deduped case-insensitively. Backups from before the
-    // merchant field existed simply produce an empty list here, which is fine.
+    const seenIds = new Set();
+    const expenses = data.expenses.map(e => {
+      let id = (e.id && typeof e.id === 'string') ? e.id : makeId();
+      if (seenIds.has(id)) id = makeId();
+      seenIds.add(id);
+      return {
+        id,
+        date: e.date,
+        amount: Math.round(e.amount * 100) / 100,
+        category: e.category,
+        merchant: typeof e.merchant === 'string' ? e.merchant : '',
+        note: typeof e.note === 'string' ? e.note : '',
+        createdAt: e.createdAt || new Date().toISOString()
+      };
+    });
+
+    const res1 = writeJSON(STORAGE_KEYS.categories, data.categories);
+    if (!res1.ok) return res1;
+    const res2 = writeJSON(STORAGE_KEYS.expenses, expenses);
+    if (!res2.ok) return res2;
+
     const seen = new Set();
     const mergedMerchants = [];
     const candidateMerchants = (Array.isArray(data.merchants) ? data.merchants : [])
@@ -466,7 +486,8 @@ const Store = (function () {
       const key = name.toLowerCase();
       if (!seen.has(key)) { seen.add(key); mergedMerchants.push(name); }
     });
-    writeJSON(STORAGE_KEYS.merchants, mergedMerchants);
+    const res3 = writeJSON(STORAGE_KEYS.merchants, mergedMerchants);
+    if (!res3.ok) return res3;
 
     return { ok: true };
   }

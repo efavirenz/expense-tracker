@@ -2,14 +2,17 @@
    app.js — router + screens + event wiring (vanilla JS, no deps)
    ============================================================ */
 
+(function () {
+
 Store.init();
 
-const APP_VERSION = 'V6';
+const APP_VERSION = 'V7';
 
 const appEl = document.getElementById('app');
 const titleEl = document.getElementById('pageTitle');
 const backBtn = document.getElementById('backBtn');
 const searchBtn = document.getElementById('searchBtn');
+const homeBtn = document.getElementById('homeBtn');
 const toastEl = document.getElementById('toast');
 const modalRoot = document.getElementById('modalRoot');
 
@@ -31,13 +34,22 @@ function monthLabel(yyyyMm) {
 }
 
 let toastTimer = null;
+if (toastEl) {
+  toastEl.style.cursor = 'pointer';
+  toastEl.onclick = () => {
+    toastEl.classList.remove('toast--visible');
+    clearTimeout(toastTimer);
+  };
+}
 function showToast(message, isError) {
+  if (!toastEl) return;
   toastEl.textContent = message;
   toastEl.classList.toggle('toast--error', !!isError);
   toastEl.classList.add('toast--visible');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => toastEl.classList.remove('toast--visible'), 2600);
 }
+window.showToast = showToast;
 
 function showConfirm(message, opts) {
   opts = opts || {};
@@ -47,17 +59,44 @@ function showConfirm(message, opts) {
         <div class="modal-card" role="alertdialog" aria-modal="true">
           <p class="modal-message">${escapeHtml(message)}</p>
           <div class="modal-actions">
-            <button class="btn btn--ghost" id="modalNo">${opts.noLabel || 'Cancel'}</button>
+            <button class="btn btn--ghost" id="modalNo" autofocus>${opts.noLabel || 'Cancel'}</button>
             <button class="btn ${opts.danger ? 'btn--danger' : 'btn--primary'}" id="modalYes">${opts.yesLabel || 'Yes'}</button>
           </div>
         </div>
       </div>`;
-    const close = (val) => { modalRoot.innerHTML = ''; resolve(val); };
-    document.getElementById('modalYes').addEventListener('click', () => close(true));
-    document.getElementById('modalNo').addEventListener('click', () => close(false));
-    document.getElementById('modalBackdrop').addEventListener('click', (e) => {
-      if (e.target.id === 'modalBackdrop') close(false);
+    const noBtn = document.getElementById('modalNo');
+    const yesBtn = document.getElementById('modalYes');
+    const backdrop = document.getElementById('modalBackdrop');
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        cleanup(false);
+      } else if (e.key === 'Tab') {
+        const focusables = [noBtn, yesBtn];
+        const idx = focusables.indexOf(document.activeElement);
+        if (e.shiftKey && idx === 0) {
+          e.preventDefault();
+          yesBtn.focus();
+        } else if (!e.shiftKey && idx === focusables.length - 1) {
+          e.preventDefault();
+          noBtn.focus();
+        }
+      }
+    };
+
+    const cleanup = (val) => {
+      window.removeEventListener('keydown', handleKeyDown);
+      modalRoot.innerHTML = '';
+      resolve(val);
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    yesBtn.addEventListener('click', () => cleanup(true));
+    noBtn.addEventListener('click', () => cleanup(false));
+    backdrop.addEventListener('click', (e) => {
+      if (e.target.id === 'modalBackdrop') cleanup(false);
     });
+    noBtn.focus();
   });
 }
 
@@ -76,7 +115,7 @@ function downloadTextFile(filename, mime, content) {
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 4000);
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
 }
 
 function categoryOptionsHtml(selected, includeExtra) {
@@ -130,11 +169,15 @@ function navigate(view, params) { state.stack.push(Object.assign({ view }, param
 function goBack() { if (state.stack.length > 1) { state.stack.pop(); render(); } }
 function goHome() { state.stack = [{ view: 'home' }]; render(); }
 function replaceTop(view, params) { state.stack[state.stack.length - 1] = Object.assign({ view }, params); render(); }
-// Pops back to an existing occurrence of `view` in the stack (used after an action
-// completes, to return to the menu the user came from without leaving a duplicate
-// frame behind — a duplicate frame would make the back button need two taps).
+
 function popToView(view) {
-  while (state.stack.length > 1 && topScreen().view !== view) state.stack.pop();
+  const foundIdx = state.stack.map(s => s.view).lastIndexOf(view);
+  if (foundIdx !== -1) {
+    state.stack = state.stack.slice(0, foundIdx + 1);
+  } else {
+    navigate(view);
+    return;
+  }
   render();
 }
 
@@ -196,12 +239,12 @@ const Screens = {
           </label>
           <label class="field">
             <span class="field__label">Merchant (optional)</span>
-            <input type="text" id="expMerchant" list="merchantList" placeholder="e.g. Shopee, Lazada&hellip;" autocomplete="off">
+            <input type="text" id="expMerchant" list="merchantList" maxlength="100" placeholder="e.g. Shopee, Lazada&hellip;" autocomplete="off">
           </label>
           ${merchantDatalistHtml()}
           <label class="field">
             <span class="field__label">Note (optional)</span>
-            <textarea id="expNote" rows="2" placeholder="Add a note&hellip;"></textarea>
+            <textarea id="expNote" rows="2" maxlength="500" placeholder="Add a note&hellip;"></textarea>
           </label>
           <div class="form-actions">
             <button type="button" class="btn btn--ghost" data-action="goBack">Cancel</button>
@@ -270,7 +313,7 @@ const Screens = {
           <div id="formError" class="form-error" hidden></div>
           <label class="field">
             <span class="field__label">Category Name</span>
-            <input type="text" id="catName" placeholder="e.g. Pets" required autofocus>
+            <input type="text" id="catName" maxlength="100" placeholder="e.g. Pets" required autofocus>
           </label>
           <div class="form-actions">
             <button type="button" class="btn btn--ghost" data-action="goBack">Cancel</button>
@@ -314,7 +357,7 @@ const Screens = {
           <div id="formError" class="form-error" hidden></div>
           <label class="field">
             <span class="field__label">New name for "${escapeHtml(p.oldname)}"</span>
-            <input type="text" id="catNewName" value="${escapeHtml(p.oldname)}" required autofocus>
+            <input type="text" id="catNewName" maxlength="100" value="${escapeHtml(p.oldname)}" required autofocus>
           </label>
           <div class="form-actions">
             <button type="button" class="btn btn--ghost" data-action="goBack">Cancel</button>
@@ -360,7 +403,7 @@ const Screens = {
           <div id="formError" class="form-error" hidden></div>
           <label class="field">
             <span class="field__label">Merchant Name</span>
-            <input type="text" id="merchName" placeholder="e.g. Central" required autofocus>
+            <input type="text" id="merchName" maxlength="100" placeholder="e.g. Central" required autofocus>
           </label>
           <div class="form-actions">
             <button type="button" class="btn btn--ghost" data-action="goBack">Cancel</button>
@@ -404,7 +447,7 @@ const Screens = {
           <div id="formError" class="form-error" hidden></div>
           <label class="field">
             <span class="field__label">New name for "${escapeHtml(p.oldname)}"</span>
-            <input type="text" id="merchNewName" value="${escapeHtml(p.oldname)}" required autofocus>
+            <input type="text" id="merchNewName" maxlength="100" value="${escapeHtml(p.oldname)}" required autofocus>
           </label>
           <div class="form-actions">
             <button type="button" class="btn btn--ghost" data-action="goBack">Cancel</button>
@@ -498,7 +541,7 @@ const Screens = {
           </div>
           <label class="field">
             <span class="field__label">Search Text</span>
-            <input type="text" id="searchInput" value="${escapeHtml(query)}" placeholder="Category, merchant, note, amount&hellip;" autofocus autocomplete="off">
+            <input type="text" id="searchInput" maxlength="100" value="${escapeHtml(query)}" placeholder="Category, merchant, note, amount&hellip;" autofocus autocomplete="off">
           </label>
         </div>
         <div id="searchResultsContainer"></div>`,
@@ -581,15 +624,16 @@ const Screens = {
           </label>
           <label class="field">
             <span class="field__label">Merchant (optional)</span>
-            <input type="text" id="editMerchant" list="merchantList" value="${escapeHtml(record.merchant || '')}" placeholder="e.g. Shopee, Lazada&hellip;" autocomplete="off">
+            <input type="text" id="editMerchant" list="merchantList" maxlength="100" value="${escapeHtml(record.merchant || '')}" placeholder="e.g. Shopee, Lazada&hellip;" autocomplete="off">
           </label>
           ${merchantDatalistHtml()}
           <label class="field">
             <span class="field__label">Note (optional)</span>
-            <textarea id="editNote" rows="2" placeholder="Add a note&hellip;">${escapeHtml(record.note || '')}</textarea>
+            <textarea id="editNote" rows="2" maxlength="500" placeholder="Add a note&hellip;">${escapeHtml(record.note || '')}</textarea>
           </label>
           <div class="form-actions">
             <button type="button" class="btn btn--danger" id="deleteExpBtn">Delete</button>
+            <button type="button" class="btn btn--ghost" id="cancelExpBtn">Cancel</button>
             <button type="submit" class="btn btn--primary">Save</button>
           </div>
         </form>`,
@@ -606,10 +650,14 @@ const Screens = {
           showToast('Expense updated.');
           goBack();
         });
+        document.getElementById('cancelExpBtn').addEventListener('click', () => {
+          goBack();
+        });
         document.getElementById('deleteExpBtn').addEventListener('click', async () => {
           const confirmed = await showConfirm('Delete this expense? This cannot be undone.', { danger: true, yesLabel: 'Delete' });
           if (!confirmed) return;
-          Store.deleteExpense(record.id);
+          const res = Store.deleteExpense(record.id);
+          if (!res.ok) { showToast(res.error, true); return; }
           showToast('Expense deleted.');
           goBack();
         });
@@ -846,7 +894,8 @@ async function handleAction(actionEl) {
       { danger: true, yesLabel: 'Delete' }
     );
     if (!confirmed) return;
-    Store.deleteCategory(name);
+    const res = Store.deleteCategory(name);
+    if (!res.ok) { showToast(res.error, true); return; }
     showToast('Category deleted.');
     popToView('categoriesMenu');
     return;
@@ -859,7 +908,8 @@ async function handleAction(actionEl) {
       { danger: true, yesLabel: 'Delete' }
     );
     if (!confirmed) return;
-    Store.deleteMerchant(name);
+    const res = Store.deleteMerchant(name);
+    if (!res.ok) { showToast(res.error, true); return; }
     showToast('Merchant deleted.');
     popToView('categoriesMenu');
     return;
@@ -879,6 +929,9 @@ if (searchBtn) {
     navigate('searchExpenses', { startMonth: currentMonth, endMonth: Store.currentMonthISO() });
   });
 }
+if (homeBtn) {
+  homeBtn.addEventListener('click', goHome);
+}
 
 /* ---------------- render loop ---------------- */
 
@@ -886,11 +939,16 @@ function render() {
   const screenState = topScreen();
   const screen = Screens[screenState.view](screenState);
   titleEl.textContent = screen.title;
+  document.title = screen.title ? `${screen.title} - Expense Tracker` : 'Expense Tracker';
   backBtn.hidden = !screen.back;
-  if (searchBtn) searchBtn.hidden = (screenState.view !== 'expensesList' && screenState.view !== 'home');
+  if (homeBtn) homeBtn.hidden = (screenState.view === 'home');
   appEl.innerHTML = screen.html;
   if (screen.afterRender) screen.afterRender();
   appEl.scrollTop = 0;
 }
 
+window.onStoreUpdated = render;
+
 render();
+
+})();

@@ -3,9 +3,9 @@
   --surface: #FFFFFF;
   --text: #1C1C1E;
   --text-muted: #6B6B66;
-  --accent: #2F6F5E;
-  --accent-dark: #234F43;
-  --accent-soft: #E4EFEC;
+  --accent: #0B81FE;
+  --accent-dark: #0866CB;
+  --accent-soft: #E6F2FF;
   --warn: #B3541E;
   --danger: #B3261E;
   --danger-soft: #F7E6E3;
@@ -70,7 +70,8 @@ button, input, select {
   flex: 1;
 }
 
-.search-btn {
+.search-btn,
+.home-btn {
   border: none;
   background: none;
   font-size: 20px;
@@ -123,7 +124,7 @@ button, input, select {
 }
 
 .month-glance {
-  background: #0B81FE;
+  background: var(--accent);
   color: #FFFFFF;
   border-radius: var(--radius);
   padding: 18px 20px;

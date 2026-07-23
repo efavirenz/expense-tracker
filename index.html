@@ -3,11 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
 <title>Expense Tracker</title>
 
 <!-- PWA / iOS home screen setup -->
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#2F6F5E">
+<meta name="theme-color" content="#0B81FE">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Expenses">
@@ -23,10 +24,11 @@
 <header class="app-header">
   <button id="backBtn" class="back-btn" aria-label="Back" hidden>&#8592;</button>
   <h1 id="pageTitle">Expenses</h1>
-  <button id="searchBtn" class="search-btn" aria-label="Search" >🔍</button>
+  <button id="searchBtn" class="search-btn" aria-label="Search">🔍</button>
+  <button id="homeBtn" class="home-btn" aria-label="Home">🏠</button>
 </header>
 
-<main id="app" class="app-main"></main>
+<main id="app" class="app-main" aria-live="polite"></main>
 
 <div id="modalRoot"></div>
 
@@ -35,7 +37,20 @@
 <script>
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('service-worker.js').catch(function(){});
+      navigator.serviceWorker.register('service-worker.js')
+        .then((reg) => {
+          reg.addEventListener('updatefound', () => {
+            const newWorker = reg.installing;
+            if (newWorker) {
+              newWorker.addEventListener('statechange', () => {
+                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                  if (typeof showToast === 'function') showToast('New version available — reload to update');
+                }
+              });
+            }
+          });
+        })
+        .catch((err) => console.error('SW registration failed:', err));
     });
   }
 </script>

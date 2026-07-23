@@ -73,12 +73,18 @@ Two things were added during planning review, both agreed on beforehand:
 
 ## Changelog
 
-**v6 — Search expenses, top card theme & home search shortcut**
-- Added Search Expenses feature (🔍 button on top right of home screen and View / Edit Expenses screen).
+**v7 — Theme sync, edit expense cancel button & header shortcuts**
+- Updated theme accent color and primary buttons to `#0B81FE` with white font color to match homepage summary card.
+- Added `Cancel` button between `Delete` and `Save` on expense edit screen.
+- Added Home icon (🏠) next to Search icon (🔍) in header. Home icon is hidden on homepage and visible on all sub-pages; tapping Home resets navigation to homepage.
+- Fixed all security, bug, data integrity, and accessibility issues from audit report (crypto.randomUUID IDs, localStorage quota error handling, CSP headers, stale-while-revalidate SW, backup import validation, focus trap, maxlength input limits, cross-tab sync).
+- Home screen version tag bumped to **V7**; service worker cache bumped to `v9`.
+
+**v6 — Search expenses & home menu simplification**
+- Added Search Expenses feature (🔍 button in header and View / Edit Expenses screen).
 - Search allows filtering by month range (From / To month pickers) and searching text across 4 fields: category, merchant, note, and amount.
 - Tapping search result navigates directly to expense edit screen.
 - Simplified home screen menu: merged *Add Today's Expense* and *Add Expense (Other Day)* into a single **Add Expense** item. Date field defaults to today and remains fully editable via date picker.
-- Updated top homepage summary card background color to `#0B81FE` with white font color.
 - Home screen version tag bumped to **V6**; service worker cache bumped to `v8`.
 
 **v5 — Summary display formatting, toggle & theme update**
