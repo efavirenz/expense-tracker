@@ -6,7 +6,39 @@
 
 Store.init();
 
-const APP_VERSION = 'V7';
+function hexToRgb(hex) {
+  const c = (hex || '').replace('#', '');
+  if (c.length !== 6) return { r: 11, g: 129, b: 254 };
+  return {
+    r: parseInt(c.substring(0, 2), 16),
+    g: parseInt(c.substring(2, 4), 16),
+    b: parseInt(c.substring(4, 6), 16)
+  };
+}
+
+function applyAccentColor(hex) {
+  const color = hex || Store.getAccentColor() || '#0B81FE';
+  const rgb = hexToRgb(color);
+  if (isNaN(rgb.r) || isNaN(rgb.g) || isNaN(rgb.b)) return;
+  const darkRgb = {
+    r: Math.max(0, Math.floor(rgb.r * 0.8)),
+    g: Math.max(0, Math.floor(rgb.g * 0.8)),
+    b: Math.max(0, Math.floor(rgb.b * 0.8))
+  };
+  const darkHex = '#' + [darkRgb.r, darkRgb.g, darkRgb.b].map(x => x.toString(16).padStart(2, '0')).join('');
+  const softRgb = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.12)`;
+
+  document.documentElement.style.setProperty('--accent', color);
+  document.documentElement.style.setProperty('--accent-dark', darkHex);
+  document.documentElement.style.setProperty('--accent-soft', softRgb);
+
+  const themeMeta = document.querySelector('meta[name="theme-color"]');
+  if (themeMeta) themeMeta.setAttribute('content', color);
+}
+
+applyAccentColor();
+
+const APP_VERSION = 'V8';
 
 const appEl = document.getElementById('app');
 const titleEl = document.getElementById('pageTitle');
@@ -38,7 +70,10 @@ if (toastEl) {
   toastEl.style.cursor = 'pointer';
   toastEl.onclick = () => {
     toastEl.classList.remove('toast--visible');
-    clearTimeout(toastTimer);
+    if (toastTimer) {
+      clearTimeout(toastTimer);
+      toastTimer = null;
+    }
   };
 }
 function showToast(message, isError) {
@@ -135,21 +170,33 @@ function merchantDatalistHtml() {
   return `<datalist id="merchantList">${merchants.map(m => `<option value="${escapeHtml(m)}">`).join('')}</datalist>`;
 }
 
-function renderSummaryTable(rows, total, showMerchants = true) {
+function renderSummaryTable(rows, total, showMerchants = true, periodStart = '', periodEnd = '') {
   if (rows.length === 0) {
     return `<div class="empty-state">No expenses in this period.</div>`;
   }
   const body = rows.map(r => {
+    const catContent = (periodStart && periodEnd)
+      ? `<span class="summary-table__link" data-action="nav" data-view="filteredExpenses" data-start="${periodStart}" data-end="${periodEnd}" data-category="${escapeHtml(r.category)}">${escapeHtml(r.category)}</span>`
+      : escapeHtml(r.category);
+
     const catRow = `
     <tr class="summary-table__cat-row">
-      <td>${escapeHtml(r.category)}</td>
+      <td>${catContent}</td>
       <td class="num">${formatTHB(r.total)}</td>
     </tr>`;
-    const merchantRows = r.merchants.map(m => `
+
+    const merchantRows = r.merchants.map(m => {
+      const merchantContent = (periodStart && periodEnd)
+        ? `<span class="summary-table__link" data-action="nav" data-view="filteredExpenses" data-start="${periodStart}" data-end="${periodEnd}" data-category="${escapeHtml(r.category)}" data-merchant="${escapeHtml(m.merchant)}">&nbsp;&nbsp;&nbsp;${escapeHtml(m.merchant)}</span>`
+        : `&nbsp;&nbsp;&nbsp;${escapeHtml(m.merchant)}`;
+
+      return `
     <tr class="summary-table__merchant-row">
-      <td class="summary-table__merchant-name ${m.merchant === Store.NO_MERCHANT_LABEL ? 'summary-table__merchant-name--empty' : ''}">&nbsp;&nbsp;&nbsp;${escapeHtml(m.merchant)}</td>
+      <td class="summary-table__merchant-name ${m.merchant === Store.NO_MERCHANT_LABEL ? 'summary-table__merchant-name--empty' : ''}">${merchantContent}</td>
       <td class="num summary-table__merchant-num">${formatTHB(m.total)}&nbsp;&nbsp;&nbsp;</td>
-    </tr>`).join('');
+    </tr>`;
+    }).join('');
+
     return catRow + merchantRows;
   }).join('');
   const hideClass = !showMerchants ? ' hide-merchants' : '';
@@ -193,7 +240,7 @@ const Screens = {
       back: false,
       html: `
         <div class="home-version">${APP_VERSION}</div>
-        <div class="month-glance">
+        <div class="month-glance" data-action="nav" data-view="expensesList" data-month="${month}">
           <span class="month-glance__label">This month - ${monthLabel(month)}</span>
           <span class="month-glance__value">${formatTHB(monthTotal)}</span>
         </div>
@@ -209,6 +256,9 @@ const Screens = {
           </button>
           <button class="menu-item" data-action="nav" data-view="categoriesMenu">
             <span>Edit Category / Merchant</span><span class="chev">&#8250;</span>
+          </button>
+          <button class="menu-item" data-action="nav" data-view="changeColor">
+            <span>Change color</span><span class="chev">&#8250;</span>
           </button>
           <button class="menu-item" data-action="nav" data-view="backup">
             <span>Backup & Restore</span><span class="chev">&#8250;</span>
@@ -487,6 +537,7 @@ const Screens = {
   expensesList(p) {
     const month = p.month || Store.currentMonthISO();
     const items = Store.getExpensesForMonth(month);
+    const today = Store.todayISO();
     return {
       title: 'View / Edit Expenses',
       back: true,
@@ -497,7 +548,7 @@ const Screens = {
         ${items.length === 0 ? `<div class="empty-state">No expenses in ${monthLabel(month)}.</div>` : `
         <ul class="expense-list">
           ${items.map(e => `
-            <li class="expense-row" data-action="nav" data-view="expenseEdit" data-id="${e.id}">
+            <li class="expense-row ${e.date === today ? 'expense-row--today' : ''}" data-action="nav" data-view="expenseEdit" data-id="${e.id}">
               <div class="expense-row__main">
                 <span class="expense-row__cat">${escapeHtml(e.category)}${e.merchant ? ` <span class="expense-row__merchant">&middot; ${escapeHtml(e.merchant)}</span>` : ''}</span>
                 <span class="expense-row__date">${formatDateDisplay(e.date)}</span>
@@ -755,7 +806,7 @@ const Screens = {
             <span class="toggle-label">Show Merchant</span>
           </label>
         </div>
-        ${renderSummaryTable(rows, total, showMerchants)}
+        ${renderSummaryTable(rows, total, showMerchants, p.start, p.end)}
         ${rows.length ? `<div class="form-actions"><button class="btn btn--primary" data-action="nav" data-view="csvTypeChoice" data-start="${p.start}" data-end="${p.end}">Save to CSV</button></div>` : ''}`,
       afterRender() {
         const toggle = document.getElementById('toggleMerchants');
@@ -769,6 +820,106 @@ const Screens = {
             }
           });
         }
+      }
+    };
+  },
+
+  filteredExpenses(p) {
+    const start = p.start;
+    const end = p.end;
+    const category = p.category || '';
+    const merchant = p.merchant;
+    const items = Store.getExpensesInRangeFiltered(start, end, category, merchant);
+    const today = Store.todayISO();
+    const isMerchantSpecified = (merchant !== undefined && merchant !== null);
+    const subTitle = isMerchantSpecified ? `${escapeHtml(category)} &middot; ${escapeHtml(merchant)}` : escapeHtml(category);
+
+    return {
+      title: 'Expenses',
+      back: true,
+      html: `
+        <div class="period-label filtered-header">
+          <div class="filtered-header__title">${subTitle}</div>
+          <div>${formatDateDisplay(start)} &ndash; ${formatDateDisplay(end)}</div>
+        </div>
+        ${items.length === 0 ? `<div class="empty-state">No expenses found for this selection.</div>` : `
+        <div class="month-glance month-glance--subtotal">
+          <span class="month-glance__label">Subtotal</span>
+          <span class="month-glance__value">${formatTHB(Store.grandTotal(items))}</span>
+        </div>
+        <ul class="expense-list">
+          ${items.map(e => `
+            <li class="expense-row ${e.date === today ? 'expense-row--today' : ''}" data-action="nav" data-view="expenseEdit" data-id="${e.id}">
+              <div class="expense-row__main">
+                <span class="expense-row__cat">${escapeHtml(e.category)}${e.merchant ? ` <span class="expense-row__merchant">&middot; ${escapeHtml(e.merchant)}</span>` : ''}</span>
+                <span class="expense-row__date">${formatDateDisplay(e.date)}</span>
+                ${e.note ? `<span class="expense-row__note">${escapeHtml(e.note)}</span>` : ''}
+              </div>
+              <span class="expense-row__amt">${formatTHB(e.amount)}</span>
+            </li>`).join('')}
+        </ul>`}`
+    };
+  },
+
+  changeColor(p) {
+    const currentColor = Store.getAccentColor();
+    return {
+      title: 'Change color',
+      back: true,
+      html: `
+        <form class="form" id="changeColorForm">
+          <div id="formError" class="form-error" hidden></div>
+          <label class="field">
+            <span class="field__label">Theme Accent Color</span>
+            <div class="color-picker-row">
+              <input type="color" id="colorPicker" value="${currentColor}">
+              <input type="text" id="colorHex" value="${currentColor}" maxlength="7" placeholder="#0B81FE" required pattern="^#[0-9A-Fa-f]{6}$" autocomplete="off" spellcheck="false">
+            </div>
+          </label>
+          <div class="form-actions">
+            <button type="button" class="btn btn--ghost" id="colorCancelBtn">Cancel</button>
+            <button type="submit" class="btn btn--primary">Save</button>
+          </div>
+        </form>`,
+      afterRender() {
+        const picker = document.getElementById('colorPicker');
+        const hexInput = document.getElementById('colorHex');
+        const form = document.getElementById('changeColorForm');
+        const cancelBtn = document.getElementById('colorCancelBtn');
+
+        picker.addEventListener('input', (e) => {
+          const val = e.target.value;
+          hexInput.value = val.toUpperCase();
+          applyAccentColor(val);
+        });
+
+        hexInput.addEventListener('input', (e) => {
+          let val = e.target.value.trim();
+          if (!val.startsWith('#') && val.length > 0) val = '#' + val;
+          if (/^#[0-9A-Fa-f]{6}$/.test(val)) {
+            picker.value = val;
+            applyAccentColor(val);
+          }
+        });
+
+        cancelBtn.addEventListener('click', () => {
+          applyAccentColor(currentColor);
+          goBack();
+        });
+
+        form.addEventListener('submit', (e) => {
+          e.preventDefault();
+          let val = hexInput.value.trim();
+          if (!val.startsWith('#')) val = '#' + val;
+          const res = Store.setAccentColor(val);
+          if (!res.ok) {
+            showFormError(res.error);
+            return;
+          }
+          applyAccentColor(val);
+          showToast('Color saved.');
+          goBack();
+        });
       }
     };
   },
@@ -821,6 +972,7 @@ const Screens = {
           const res = Store.importBackup(text);
           e.target.value = '';
           if (!res.ok) { showToast(res.error, true); return; }
+          applyAccentColor();
           showToast('Data restored.');
           goHome();
         });
@@ -854,7 +1006,12 @@ async function handleAction(actionEl) {
   const action = actionEl.dataset.action;
 
   if (action === 'nav') {
-    navigate(actionEl.dataset.view, { ...actionEl.dataset });
+    const targetView = actionEl.dataset.view;
+    if (!Screens[targetView]) {
+      console.warn('Unknown navigation view target:', targetView);
+      return;
+    }
+    navigate(targetView, { ...actionEl.dataset });
     return;
   }
   if (action === 'goBack') { goBack(); return; }
@@ -937,6 +1094,9 @@ if (homeBtn) {
 
 function render() {
   const screenState = topScreen();
+  if (screenState.view !== 'changeColor') {
+    applyAccentColor();
+  }
   const screen = Screens[screenState.view](screenState);
   titleEl.textContent = screen.title;
   document.title = screen.title ? `${screen.title} - Expense Tracker` : 'Expense Tracker';

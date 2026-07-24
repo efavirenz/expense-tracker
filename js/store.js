@@ -2,54 +2,62 @@
    store.js — data layer (localStorage). No UI code lives here.
    ============================================================ */
 
-const STORAGE_KEYS = {
-  categories:    'expenseApp_categories_v1',
-  expenses:      'expenseApp_expenses_v1',
-  merchants:     'expenseApp_merchants_v1',
-  showMerchants: 'expenseApp_showMerchants_v1'
-};
-
-const RESERVED_CATEGORY = '[Removed]';
-const LEGACY_RESERVED_CATEGORY = 'Removed';
-const NO_MERCHANT_LABEL = '(No merchant)';
-
-const DEFAULT_CATEGORIES = [
-  '7-11🏪', 'Clothing🧥', 'Dining out🍽️', 'Education📚', 'Entertainment🎬',
-  'Food & Drink🍔', 'Gifts & Donations🎁', 'Groceries🛒', 'Healthcare🩺',
-  'Household🏠', 'Investment💰', 'Other📦', 'Personal care🧴', 'Shopping🛍️',
-  'Skincare🌟', 'Supplements💊', 'Transportation🚗', 'Travel✈️', 'Utilities💡'
-];
-
-const DEFAULT_MERCHANTS = ['Lazada', 'Shopee'];
-
 const Store = (function () {
+  const STORAGE_KEYS = {
+    categories:    'expenseApp_categories_v1',
+    expenses:      'expenseApp_expenses_v1',
+    merchants:     'expenseApp_merchants_v1',
+    showMerchants: 'expenseApp_showMerchants_v1',
+    accentColor:   'expenseApp_accentColor_v1'
+  };
+
+  const RESERVED_CATEGORY = '[Removed]';
+  const LEGACY_RESERVED_CATEGORY = 'Removed';
+  const NO_MERCHANT_LABEL = '(No merchant)';
+
+  const DEFAULT_CATEGORIES = [
+    '7-11🏪', 'Clothing🧥', 'Dining out🍽️', 'Education📚', 'Entertainment🎬',
+    'Food & Drink🍔', 'Gifts & Donations🎁', 'Groceries🛒', 'Healthcare🩺',
+    'Household🏠', 'Investment💰', 'Other📦', 'Personal care🧴', 'Shopping🛍️',
+    'Skincare🌟', 'Supplements💊', 'Transportation🚗', 'Travel✈️', 'Utilities💡'
+  ];
+
+  const DEFAULT_MERCHANTS = ['Lazada', 'Shopee'];
+
   const cache = {};
 
+  function deepClone(val) {
+    if (val === undefined || val === null) return val;
+    return JSON.parse(JSON.stringify(val));
+  }
+
   function readJSON(key, fallback) {
-    if (cache[key] !== undefined) return cache[key];
+    if (cache[key] !== undefined) return deepClone(cache[key]);
     try {
       const raw = localStorage.getItem(key);
       if (raw === null) {
         cache[key] = fallback;
-        return fallback;
+        return deepClone(fallback);
       }
       const parsed = JSON.parse(raw);
       const val = (parsed === null || parsed === undefined) ? fallback : parsed;
       cache[key] = val;
-      return val;
+      return deepClone(val);
     } catch (e) {
       console.error('Store read error for', key, e);
       cache[key] = fallback;
-      return fallback;
+      return deepClone(fallback);
     }
   }
 
   function writeJSON(key, value) {
-    cache[key] = value;
+    const clonedValue = deepClone(value);
+    cache[key] = clonedValue;
     try {
-      localStorage.setItem(key, JSON.stringify(value));
+      localStorage.setItem(key, JSON.stringify(clonedValue));
       return { ok: true };
     } catch (e) {
+      delete cache[key];
       console.error('Store write error for', key, e);
       return { ok: false, error: 'หน่วยความจำเต็ม ไม่สามารถบันทึกข้อมูลได้ (Storage Quota Exceeded)' };
     }
@@ -109,6 +117,15 @@ const Store = (function () {
     return `${y}-${m}-${day}`;
   }
 
+  function tomorrowISO() {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
   function currentMonthISO() {
     return todayISO().slice(0, 7);
   }
@@ -140,11 +157,12 @@ const Store = (function () {
     const newName = (rawNewName || '').trim();
     if (!newName) return { ok: false, error: 'กรุณากรอกชื่อใหม่' };
     if (oldName === RESERVED_CATEGORY) return { ok: false, error: 'ไม่สามารถแก้ไขหมวดหมู่นี้ได้' };
-    if (newName.toLowerCase() === oldName.toLowerCase()) {
+    if (newName === oldName) {
       return { ok: false, error: 'ชื่อใหม่เหมือนชื่อเดิม' };
     }
     const categories = getCategories();
-    if (categoryExists(newName, categories)) {
+    const otherCategories = categories.filter(c => c !== oldName);
+    if (categoryExists(newName, otherCategories)) {
       return { ok: false, error: `มีหมวดหมู่ชื่อ "${newName}" อยู่แล้ว กรุณาใช้ชื่ออื่น` };
     }
     const idx = categories.findIndex(c => c === oldName);
@@ -186,7 +204,7 @@ const Store = (function () {
   }
 
   function getSelectableCategories() {
-    return getCategories();
+    return getCategories().filter(c => c !== RESERVED_CATEGORY);
   }
 
   // ---------- Merchants ----------
@@ -225,11 +243,14 @@ const Store = (function () {
   function renameMerchant(oldName, rawNewName) {
     const newName = (rawNewName || '').trim();
     if (!newName) return { ok: false, error: 'กรุณากรอกชื่อใหม่' };
-    if (newName.toLowerCase() === oldName.toLowerCase()) {
+    if (newName.toLowerCase() === oldName.toLowerCase() && newName !== oldName) {
+      // allow casing change
+    } else if (newName.toLowerCase() === oldName.toLowerCase()) {
       return { ok: false, error: 'ชื่อใหม่เหมือนชื่อเดิม' };
     }
     const merchants = getMerchants();
-    if (merchantExists(newName, merchants)) {
+    const otherMerchants = merchants.filter(m => m !== oldName);
+    if (merchantExists(newName, otherMerchants)) {
       return { ok: false, error: `มีร้านค้าชื่อ "${newName}" อยู่แล้ว กรุณาใช้ชื่ออื่น` };
     }
     const idx = merchants.findIndex(m => m === oldName);
@@ -306,7 +327,15 @@ const Store = (function () {
     const idx = expenses.findIndex(e => e.id === id);
     if (idx === -1) return { ok: false, error: 'ไม่พบรายการนี้' };
     const merchantName = (merchant || '').trim();
-    expenses[idx] = { ...expenses[idx], date, amount: amt.value, category, merchant: merchantName, note: (note || '').trim() };
+    expenses[idx] = {
+      ...expenses[idx],
+      date,
+      amount: amt.value,
+      category,
+      merchant: merchantName,
+      note: (note || '').trim(),
+      updatedAt: new Date().toISOString()
+    };
     const res = writeJSON(STORAGE_KEYS.expenses, expenses);
     if (!res.ok) return res;
     if (merchantName) rememberMerchant(merchantName);
@@ -318,16 +347,37 @@ const Store = (function () {
     return writeJSON(STORAGE_KEYS.expenses, expenses);
   }
 
+  function compareExpenseSort(a, b) {
+    if (a.date !== b.date) return b.date.localeCompare(a.date);
+    const aTime = a.updatedAt || a.createdAt || '';
+    const bTime = b.updatedAt || b.createdAt || '';
+    return bTime.localeCompare(aTime);
+  }
+
   function getExpensesForMonth(yyyyMm) {
     return getExpenses()
       .filter(e => e.date.slice(0, 7) === yyyyMm)
-      .sort((a, b) => b.date.localeCompare(a.date));
+      .sort(compareExpenseSort);
   }
 
   function getExpensesInRange(startDate, endDate) {
     return getExpenses()
       .filter(e => e.date >= startDate && e.date <= endDate)
-      .sort((a, b) => b.date.localeCompare(a.date));
+      .sort(compareExpenseSort);
+  }
+
+  function getExpensesInRangeFiltered(startDate, endDate, category, merchant) {
+    return getExpenses()
+      .filter(e => {
+        if (e.date < startDate || e.date > endDate) return false;
+        if (category && e.category !== category) return false;
+        if (merchant !== undefined && merchant !== null) {
+          const m = (e.merchant || '').trim() || NO_MERCHANT_LABEL;
+          if (m !== merchant) return false;
+        }
+        return true;
+      })
+      .sort(compareExpenseSort);
   }
 
   function searchExpenses(startMonth, endMonth, query) {
@@ -343,7 +393,7 @@ const Store = (function () {
             || (e.note || '').toLowerCase().includes(q)
             || String(e.amount).includes(q);
       })
-      .sort((a, b) => b.date.localeCompare(a.date));
+      .sort(compareExpenseSort);
   }
 
   // ---------- Summaries ----------
@@ -384,7 +434,7 @@ const Store = (function () {
 
   function csvEscape(value) {
     const s = String(value);
-    if (/[",\n]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+    if (/[",\r\n]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
     return s;
   }
 
@@ -403,7 +453,9 @@ const Store = (function () {
     const lines = ['Date,Category,Merchant,Amount (THB),Note'];
     const sorted = expenseList.slice().sort((a, b) => {
       if (a.date !== b.date) return a.date.localeCompare(b.date);
-      return (a.createdAt || '').localeCompare(b.createdAt || '');
+      const aTime = a.updatedAt || a.createdAt || '';
+      const bTime = b.updatedAt || b.createdAt || '';
+      return aTime.localeCompare(bTime);
     });
     sorted.forEach(e => {
       lines.push([
@@ -426,7 +478,8 @@ const Store = (function () {
       exportedAt: new Date().toISOString(),
       categories: getCategories(),
       merchants: getMerchants(),
-      expenses: getExpenses()
+      expenses: getExpenses(),
+      accentColor: getAccentColor()
     };
     return JSON.stringify(payload, null, 2);
   }
@@ -445,9 +498,9 @@ const Store = (function () {
       return { ok: false, error: 'โครงสร้างไฟล์ไม่ถูกต้อง (ต้องมี categories และ expenses)' };
     }
     const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-    const today = todayISO();
+    const maxAllowedDate = tomorrowISO();
     const validExpenses = data.expenses.every(e =>
-      e && typeof e.date === 'string' && dateRegex.test(e.date) && e.date <= today &&
+      e && typeof e.date === 'string' && dateRegex.test(e.date) && e.date <= maxAllowedDate &&
       typeof e.amount === 'number' && e.amount > 0 &&
       typeof e.category === 'string' && e.category.trim() !== ''
     );
@@ -467,7 +520,8 @@ const Store = (function () {
         category: e.category,
         merchant: typeof e.merchant === 'string' ? e.merchant : '',
         note: typeof e.note === 'string' ? e.note : '',
-        createdAt: e.createdAt || new Date().toISOString()
+        createdAt: e.createdAt || new Date().toISOString(),
+        updatedAt: e.updatedAt || undefined
       };
     });
 
@@ -476,8 +530,9 @@ const Store = (function () {
     const res2 = writeJSON(STORAGE_KEYS.expenses, expenses);
     if (!res2.ok) return res2;
 
-    const seen = new Set();
-    const mergedMerchants = [];
+    const existingMerchants = getMerchants();
+    const seen = new Set(existingMerchants.map(m => m.toLowerCase()));
+    const mergedMerchants = existingMerchants.slice();
     const candidateMerchants = (Array.isArray(data.merchants) ? data.merchants : [])
       .concat(expenses.map(e => e.merchant));
     candidateMerchants.forEach(m => {
@@ -488,6 +543,13 @@ const Store = (function () {
     });
     const res3 = writeJSON(STORAGE_KEYS.merchants, mergedMerchants);
     if (!res3.ok) return res3;
+
+    if (data.accentColor && typeof data.accentColor === 'string') {
+      const cleanColor = data.accentColor.trim();
+      if (/^#[0-9A-Fa-f]{6}$/.test(cleanColor)) {
+        setAccentColor(cleanColor);
+      }
+    }
 
     return { ok: true };
   }
@@ -500,14 +562,26 @@ const Store = (function () {
     writeJSON(STORAGE_KEYS.showMerchants, Boolean(val));
   }
 
+  function getAccentColor() {
+    return readJSON(STORAGE_KEYS.accentColor, '#0B81FE');
+  }
+
+  function setAccentColor(hex) {
+    const cleanHex = (hex || '').trim();
+    if (!/^#[0-9A-Fa-f]{6}$/.test(cleanHex)) {
+      return { ok: false, error: 'รหัสสีไม่ถูกต้อง (ต้องเป็น #RRGGBB)' };
+    }
+    return writeJSON(STORAGE_KEYS.accentColor, cleanHex);
+  }
+
   return {
     init,
     todayISO, currentMonthISO,
     getCategories, addCategory, renameCategory, deleteCategory, getSelectableCategories, categoryExists,
     getMerchants, rememberMerchant, merchantExists, addMerchant, renameMerchant, deleteMerchant,
-    getExpenses, addExpense, updateExpense, deleteExpense, getExpensesForMonth, getExpensesInRange, searchExpenses,
+    getExpenses, addExpense, updateExpense, deleteExpense, getExpensesForMonth, getExpensesInRange, getExpensesInRangeFiltered, searchExpenses,
     summarizeByCategory, summarizeByCategoryAndMerchant, grandTotal, summaryToCSV, expensesToCSV,
-    exportBackup, importBackup, getShowMerchants, setShowMerchants,
+    exportBackup, importBackup, getShowMerchants, setShowMerchants, getAccentColor, setAccentColor,
     RESERVED_CATEGORY, NO_MERCHANT_LABEL
   };
 })();

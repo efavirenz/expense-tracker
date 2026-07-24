@@ -73,6 +73,14 @@ Two things were added during planning review, both agreed on beforehand:
 
 ## Changelog
 
+**v8 — Summary drill-down, today's expense highlight, date+time sort, custom accent color & security hardening**
+- **Summary Drill-Down**: Tapping any category or merchant in Summary results navigates directly to filtered expense list for that period. Subtotal card positioned above list (right-aligned, hidden when empty).
+- **View / Edit Expenses Enhancements**: Today's expenses highlighted with pale accent background. Expenses sorted by date + time (`createdAt`/`updatedAt` tiebreaker, latest first). Note fields show up to 2 lines.
+- **Change Color Menu**: New **Change color** menu above Backup & Restore allows customizing theme accent color via live color picker + hex code input. Auto-syncs theme across app & backups. Reverts unsaved preview on navigation exit.
+- **Homepage Summary Card Link**: Tapping summary card on homepage navigates directly to View / Edit Expenses for current month.
+- **Security & Data Layer Hardening**: Removed `'unsafe-inline'` script CSP by extracting SW registration to `js/sw-register.js`. Deep-cloned store cache to prevent mutation before disk write. Fixed case-only category renames, `[Removed]` category filtering in dropdowns, timezone grace in backup import, merchant case deduplication, and toast timer leaks.
+- Home screen version tag bumped to **V8**; service worker cache bumped to `v10`.
+
 **v7 — Theme sync, edit expense cancel button & header shortcuts**
 - Updated theme accent color and primary buttons to `#0B81FE` with white font color to match homepage summary card.
 - Added `Cancel` button between `Delete` and `Save` on expense edit screen.
