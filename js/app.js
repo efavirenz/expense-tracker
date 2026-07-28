@@ -38,7 +38,7 @@ function applyAccentColor(hex) {
 
 applyAccentColor();
 
-const APP_VERSION = 'V8';
+const APP_VERSION = 'V9';
 
 const appEl = document.getElementById('app');
 const titleEl = document.getElementById('pageTitle');
@@ -233,7 +233,9 @@ function popToView(view) {
 const Screens = {
 
   home(p) {
+    const today = Store.todayISO();
     const month = Store.currentMonthISO();
+    const todayTotal = Store.grandTotal(Store.getExpensesForDate(today));
     const monthTotal = Store.grandTotal(Store.getExpensesForMonth(month));
     return {
       title: 'Expenses',
@@ -241,8 +243,15 @@ const Screens = {
       html: `
         <div class="home-version">${APP_VERSION}</div>
         <div class="month-glance" data-action="nav" data-view="expensesList" data-month="${month}">
-          <span class="month-glance__label">This month - ${monthLabel(month)}</span>
-          <span class="month-glance__value">${formatTHB(monthTotal)}</span>
+          <div class="month-glance__row">
+            <span class="month-glance__label">This month - ${monthLabel(month)}</span>
+            <span class="month-glance__value">${formatTHB(monthTotal)}</span>
+          </div>
+          <div class="month-glance__divider"></div>
+          <div class="month-glance__row">
+            <span class="month-glance__label">Today</span>
+            <span class="month-glance__value">${formatTHB(todayTotal)}</span>
+          </div>
         </div>
         <nav class="menu-list">
           <button class="menu-item" data-action="nav" data-view="addExpense">
@@ -302,6 +311,11 @@ const Screens = {
           </div>
         </form>`,
       afterRender() {
+        const amtInput = document.getElementById('expAmount');
+        if (amtInput) {
+          amtInput.focus();
+          amtInput.select();
+        }
         document.getElementById('expenseForm').addEventListener('submit', (e) => {
           e.preventDefault();
           const date = document.getElementById('expDate').value;
@@ -538,12 +552,17 @@ const Screens = {
     const month = p.month || Store.currentMonthISO();
     const items = Store.getExpensesForMonth(month);
     const today = Store.todayISO();
+    const todayTotal = Store.grandTotal(Store.getExpensesForDate(today));
     return {
       title: 'View / Edit Expenses',
       back: true,
       html: `
         <div class="toolbar">
           <input type="month" id="monthPicker" value="${month}">
+        </div>
+        <div class="today-summary-bar">
+          <span class="today-summary-bar__label">Today's Expenses</span>
+          <span class="today-summary-bar__value">${formatTHB(todayTotal)}</span>
         </div>
         ${items.length === 0 ? `<div class="empty-state">No expenses in ${monthLabel(month)}.</div>` : `
         <ul class="expense-list">
@@ -722,6 +741,9 @@ const Screens = {
       back: true,
       html: `
         <nav class="menu-list">
+          <button class="menu-item" data-action="displayToday" data-mode="display">
+            <span>Display Today</span><span class="chev">&#8250;</span>
+          </button>
           <button class="menu-item" data-action="currentMonth" data-mode="display">
             <span>Display Current Month</span><span class="chev">&#8250;</span>
           </button>
@@ -1015,6 +1037,16 @@ async function handleAction(actionEl) {
     return;
   }
   if (action === 'goBack') { goBack(); return; }
+
+  if (action === 'displayToday') {
+    const today = Store.todayISO();
+    if (actionEl.dataset.mode === 'csv') {
+      navigate('csvTypeChoice', { start: today, end: today, returnTo: 'summaryMenu' });
+    } else {
+      navigate('summaryResult', { start: today, end: today });
+    }
+    return;
+  }
 
   if (action === 'currentMonth') {
     const month = Store.currentMonthISO();

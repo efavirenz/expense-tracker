@@ -73,6 +73,12 @@ Two things were added during planning review, both agreed on beforehand:
 
 ## Changelog
 
+**v9 — Today's expense totals, default amount focus & Display Today summary**
+- **Today's Expense Summaries**: Added Today's expense total calculation to the homepage summary card (positioned directly under the monthly total) and to the top area of the View / Edit Expenses screen (under the month picker).
+- **Default Focus on Add Expense**: Opening the Add Expense screen automatically focuses and selects the `Expense (THB)` field so the numeric keypad appears automatically on iOS devices.
+- **Display Today Summary Menu**: Added a new **Display Today** menu option as the top entry in the Summary menu, showing category and merchant breakdown for today's expenses.
+- Home screen version tag bumped to **V9**; service worker cache bumped to `v11`.
+
 **v8 — Summary drill-down, today's expense highlight, date+time sort, custom accent color & security hardening**
 - **Summary Drill-Down**: Tapping any category or merchant in Summary results navigates directly to filtered expense list for that period. Subtotal card positioned above list (right-aligned, hidden when empty).
 - **View / Edit Expenses Enhancements**: Today's expenses highlighted with pale accent background. Expenses sorted by date + time (`createdAt`/`updatedAt` tiebreaker, latest first). Note fields show up to 2 lines.

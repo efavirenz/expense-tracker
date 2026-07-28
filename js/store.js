@@ -354,6 +354,12 @@ const Store = (function () {
     return bTime.localeCompare(aTime);
   }
 
+  function getExpensesForDate(yyyyMmDd) {
+    return getExpenses()
+      .filter(e => e.date === yyyyMmDd)
+      .sort(compareExpenseSort);
+  }
+
   function getExpensesForMonth(yyyyMm) {
     return getExpenses()
       .filter(e => e.date.slice(0, 7) === yyyyMm)
@@ -579,7 +585,7 @@ const Store = (function () {
     todayISO, currentMonthISO,
     getCategories, addCategory, renameCategory, deleteCategory, getSelectableCategories, categoryExists,
     getMerchants, rememberMerchant, merchantExists, addMerchant, renameMerchant, deleteMerchant,
-    getExpenses, addExpense, updateExpense, deleteExpense, getExpensesForMonth, getExpensesInRange, getExpensesInRangeFiltered, searchExpenses,
+    getExpenses, addExpense, updateExpense, deleteExpense, getExpensesForDate, getExpensesForMonth, getExpensesInRange, getExpensesInRangeFiltered, searchExpenses,
     summarizeByCategory, summarizeByCategoryAndMerchant, grandTotal, summaryToCSV, expensesToCSV,
     exportBackup, importBackup, getShowMerchants, setShowMerchants, getAccentColor, setAccentColor,
     RESERVED_CATEGORY, NO_MERCHANT_LABEL
