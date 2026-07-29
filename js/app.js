@@ -241,7 +241,9 @@ const Screens = {
       title: 'Expenses',
       back: false,
       html: `
-        <div class="home-version" data-action="forceUpdate" role="button" tabindex="0" title="Tap to force update">${APP_VERSION}</div>
+        <div class="home-version-bar">
+          <span class="home-version" data-action="forceUpdate" role="button" tabindex="0" title="Tap to force update">${APP_VERSION}</span>
+        </div>
         <div class="month-glance" data-action="nav" data-view="expensesList" data-month="${month}">
           <div class="month-glance__row">
             <span class="month-glance__label">This month - ${monthLabel(month)}</span>
@@ -1050,6 +1052,8 @@ async function handleAction(actionEl) {
   if (action === 'goBack') { goBack(); return; }
 
   if (action === 'forceUpdate') {
+    actionEl.classList.add('updating');
+    actionEl.textContent = 'Updating...';
     try {
       if ('serviceWorker' in navigator) {
         const registrations = await navigator.serviceWorker.getRegistrations();
@@ -1065,6 +1069,10 @@ async function handleAction(actionEl) {
       console.error('Force update failed:', err);
     }
     window.location.reload();
+    setTimeout(() => {
+      actionEl.textContent = APP_VERSION;
+      actionEl.classList.remove('updating');
+    }, 1000);
     return;
   }
 
