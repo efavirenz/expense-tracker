@@ -121,6 +121,14 @@ button, input, select {
   color: var(--text-muted);
   letter-spacing: 0.02em;
   margin-bottom: 6px;
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.15s ease;
+}
+
+.home-version:hover,
+.home-version:active {
+  color: var(--accent);
 }
 
 .month-glance {

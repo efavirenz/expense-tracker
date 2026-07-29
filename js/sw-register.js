@@ -2,6 +2,7 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('service-worker.js')
       .then((reg) => {
+        reg.update().catch((err) => console.error('SW update check error:', err));
         reg.addEventListener('updatefound', () => {
           const newWorker = reg.installing;
           if (newWorker) {

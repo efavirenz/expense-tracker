@@ -38,7 +38,7 @@ function applyAccentColor(hex) {
 
 applyAccentColor();
 
-const APP_VERSION = 'V9';
+const APP_VERSION = 'v9.1';
 
 const appEl = document.getElementById('app');
 const titleEl = document.getElementById('pageTitle');
@@ -241,7 +241,7 @@ const Screens = {
       title: 'Expenses',
       back: false,
       html: `
-        <div class="home-version">${APP_VERSION}</div>
+        <div class="home-version" data-action="forceUpdate" role="button" tabindex="0" title="Tap to force update">${APP_VERSION}</div>
         <div class="month-glance" data-action="nav" data-view="expensesList" data-month="${month}">
           <div class="month-glance__row">
             <span class="month-glance__label">This month - ${monthLabel(month)}</span>
@@ -620,6 +620,17 @@ const Screens = {
         const endInput = document.getElementById('searchEndMonth');
         const qInput = document.getElementById('searchInput');
         const resultsContainer = document.getElementById('searchResultsContainer');
+
+        if (qInput) {
+          qInput.focus();
+          qInput.select();
+          setTimeout(() => {
+            if (document.activeElement !== qInput) {
+              qInput.focus();
+              qInput.select();
+            }
+          }, 50);
+        }
 
         function renderResults() {
           const sm = startInput.value;
@@ -1037,6 +1048,25 @@ async function handleAction(actionEl) {
     return;
   }
   if (action === 'goBack') { goBack(); return; }
+
+  if (action === 'forceUpdate') {
+    try {
+      if ('serviceWorker' in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        for (const reg of registrations) {
+          await reg.unregister();
+        }
+      }
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((k) => caches.delete(k)));
+      }
+    } catch (err) {
+      console.error('Force update failed:', err);
+    }
+    window.location.reload();
+    return;
+  }
 
   if (action === 'displayToday') {
     const today = Store.todayISO();

@@ -73,6 +73,11 @@ Two things were added during planning review, both agreed on beforehand:
 
 ## Changelog
 
+**v9.1 — Search text auto-focus & Interactive Version Badge force update**
+- **Search Text Auto-Focus**: Opening the `Search Expenses` screen automatically focuses and selects the `Search Text` field so the keypad appears automatically on iOS devices.
+- **Software Force Update & Interactive Version Badge**: Updated top right homepage badge to `v9.1`. Added automatic service worker update checks on launch (`reg.update()`). Tapping the `v9.1` version badge unregisters service workers, clears cache storage, and reloads to guarantee instantaneous client updates.
+- Home screen version tag bumped to **v9.1**; service worker cache bumped to `v12`.
+
 **v9 — Today's expense totals, default amount focus & Display Today summary**
 - **Today's Expense Summaries**: Added Today's expense total calculation to the homepage summary card (positioned directly under the monthly total) and to the top area of the View / Edit Expenses screen (under the month picker).
 - **Default Focus on Add Expense**: Opening the Add Expense screen automatically focuses and selects the `Expense (THB)` field so the numeric keypad appears automatically on iOS devices.
