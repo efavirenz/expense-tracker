@@ -141,14 +141,24 @@ const Store = (function () {
 
   let cachedSortedCategories = null;
   let cachedRawCategoriesRef = null;
+  let cachedExpensesRef = null;
 
   function getCategories() {
     const cats = readJSON(STORAGE_KEYS.categories, DEFAULT_CATEGORIES.slice());
-    if (cachedSortedCategories && cachedRawCategoriesRef === cache[STORAGE_KEYS.categories]) {
+    if (cachedSortedCategories && 
+        cachedRawCategoriesRef === cache[STORAGE_KEYS.categories] &&
+        cachedExpensesRef === cache[STORAGE_KEYS.expenses]) {
       return cachedSortedCategories.slice();
     }
     const sorted = cats.slice().sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+    if (!sorted.includes(RESERVED_CATEGORY)) {
+      const expenses = readJSON(STORAGE_KEYS.expenses, []);
+      if (expenses.some(e => e.category === RESERVED_CATEGORY)) {
+        sorted.push(RESERVED_CATEGORY);
+      }
+    }
     cachedRawCategoriesRef = cache[STORAGE_KEYS.categories];
+    cachedExpensesRef = cache[STORAGE_KEYS.expenses];
     cachedSortedCategories = sorted;
     return sorted.slice();
   }

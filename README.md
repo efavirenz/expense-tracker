@@ -73,6 +73,10 @@ Two things were added during planning review, both agreed on beforehand:
 
 ## Changelog
 
+**v9.9 — Dynamic [Removed] Category Visibility**
+- **Dynamic [Removed] Inclusion**: Updated `Store.getCategories()` to check if any existing expenses reference `[Removed]`. If so, `[Removed]` is appended dynamically to the category list, making it immediately visible in both `Rename Category` (allowing users to rename it) and `Delete Category` (rendered as a greyed-out disabled item). Once all orphaned expenses are renamed, `[Removed]` automatically disappears from the category list.
+- Home screen version tag bumped to **v9.9**; service worker cache bumped to `v20`.
+
 **v9.8 — Full English Translation for Error Messages**
 - **English System Messages**: Translated all remaining internal Thai error messages and validation alerts across `js/store.js` into clear, professional English messages.
 - Home screen version tag bumped to **v9.8**; service worker cache bumped to `v18` -> `v19`.
