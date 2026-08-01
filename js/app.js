@@ -39,7 +39,7 @@ function applyAccentColor(hex) {
 applyAccentColor();
 
 // ⚠️ Keep in sync with CACHE_NAME in service-worker.js
-const APP_VERSION = 'v9.3';
+const APP_VERSION = 'v9.4';
 
 const appEl = document.getElementById('app');
 const titleEl = document.getElementById('pageTitle');
@@ -164,7 +164,7 @@ function showPrompt(title, placeholder) {
       <div class="modal-backdrop" id="modalBackdrop">
         <div class="modal-card" role="dialog" aria-modal="true">
           <p class="modal-message" style="font-weight:600;margin-bottom:12px;">${escapeHtml(title)}</p>
-          <input type="text" id="modalInput" maxlength="100" placeholder="${escapeHtml(placeholder || '')}" style="margin-bottom:12px;" autocomplete="off">
+          <input type="text" id="modalInput" maxlength="100" placeholder="${escapeHtml(placeholder || '')}" style="margin-bottom:12px;" autofocus autocomplete="off">
           <div id="modalInputError" class="form-error" hidden style="margin-bottom:12px;"></div>
           <div class="modal-actions">
             <button class="btn btn--ghost" id="modalNo">Cancel</button>
@@ -223,7 +223,7 @@ function showPrompt(title, placeholder) {
     backdrop.addEventListener('click', (e) => {
       if (e.target.id === 'modalBackdrop') cleanup(null);
     });
-    setTimeout(() => { input.focus(); input.select(); }, 50);
+    setTimeout(() => { input.focus(); input.select(); }, 250);
   });
 }
 
@@ -258,6 +258,7 @@ function setupMerchantSelectListener(selectEl) {
   let currentVal = selectEl.value;
   selectEl.addEventListener('change', async () => {
     if (selectEl.value === '__add__') {
+      selectEl.blur();
       const newName = await showPrompt('Add Merchant', 'e.g. Shopee, Lazada…');
       if (newName) {
         const res = Store.addMerchant(newName);

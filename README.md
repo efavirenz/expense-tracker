@@ -73,6 +73,10 @@ Two things were added during planning review, both agreed on beforehand:
 
 ## Changelog
 
+**v9.4 — iOS Keypad Auto-Focus on Add Merchant**
+- **iOS Keypad Focus Fix**: Explicitly blur `<select>` element upon choosing `+ Add Merchant...` and increase modal input focus delay to 250ms (plus `autofocus` attribute) to allow iOS native picker dismissal transition to finish without cancelling virtual keyboard activation.
+- Home screen version tag bumped to **v9.4**; service worker cache bumped to `v15`.
+
 **v9.3 — Technical audit remediation, data safety & security hardening**
 - **Data Integrity & Rollback**: Added transaction rollback for multi-key storage updates (`renameCategory`, `deleteCategory`, `renameMerchant`) so partial storage quota failures never leave orphaned references. Standardized `importBackup` to perform point-in-time full merchant state replacement.
 - **Validation & Input Limits**: Added strict calendar date validation (`isValidCalendarDate`) preventing non-existent calendar dates (e.g. `2026-02-31`). Enforced payload boundary limits on backup JSON import (max 50k expenses, 500 categories/merchants, string length checks).
