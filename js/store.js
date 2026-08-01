@@ -172,7 +172,6 @@ const Store = (function () {
   function renameCategory(oldName, rawNewName) {
     const newName = (rawNewName || '').trim();
     if (!newName) return { ok: false, error: 'กรุณากรอกชื่อใหม่' };
-    if (oldName === RESERVED_CATEGORY) return { ok: false, error: 'ไม่สามารถแก้ไขหมวดหมู่นี้ได้' };
     if (newName === oldName) {
       return { ok: false, error: 'ชื่อใหม่เหมือนชื่อเดิม' };
     }
@@ -304,8 +303,28 @@ const Store = (function () {
   }
 
   function deleteMerchant(name) {
-    const merchants = getMerchants().filter(m => m !== name);
-    return writeJSON(STORAGE_KEYS.merchants, merchants);
+    const oldMerchants = getMerchants();
+    const merchants = oldMerchants.filter(m => m !== name);
+    const res1 = writeJSON(STORAGE_KEYS.merchants, merchants);
+    if (!res1.ok) return res1;
+
+    const oldExpenses = getExpenses();
+    const expenses = deepClone(oldExpenses);
+    let changed = false;
+    expenses.forEach(e => {
+      if (e.merchant === name) {
+        e.merchant = '';
+        changed = true;
+      }
+    });
+    if (changed) {
+      const res2 = writeJSON(STORAGE_KEYS.expenses, expenses);
+      if (!res2.ok) {
+        writeJSON(STORAGE_KEYS.merchants, oldMerchants);
+        return res2;
+      }
+    }
+    return { ok: true };
   }
 
   // ---------- Expenses ----------

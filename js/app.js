@@ -39,7 +39,7 @@ function applyAccentColor(hex) {
 applyAccentColor();
 
 // ⚠️ Keep in sync with CACHE_NAME in service-worker.js
-const APP_VERSION = 'v9.6';
+const APP_VERSION = 'v9.7';
 
 const appEl = document.getElementById('app');
 const titleEl = document.getElementById('pageTitle');
@@ -536,7 +536,7 @@ const Screens = {
   },
 
   categoryRenameList() {
-    const cats = Store.getSelectableCategories();
+    const cats = Store.getCategories();
     return {
       title: 'Rename Category',
       back: true,
@@ -582,13 +582,16 @@ const Screens = {
   },
 
   categoryDeleteList() {
-    const cats = Store.getSelectableCategories();
+    const cats = Store.getCategories();
     return {
       title: 'Delete Category',
       back: true,
       html: cats.length ? `
         <nav class="menu-list">
-          ${cats.map(c => `
+          ${cats.map(c => c === Store.RESERVED_CATEGORY ? `
+            <div class="menu-item menu-item--disabled" style="color:var(--text-muted); opacity:0.6; cursor:not-allowed;">
+              <span>${escapeHtml(c)}</span>
+            </div>` : `
             <button class="menu-item menu-item--danger" data-action="deleteCategory" data-name="${escapeHtml(c)}">
               <span>${escapeHtml(c)}</span><span class="chev">&#8250;</span>
             </button>`).join('')}
@@ -1269,7 +1272,7 @@ async function handleAction(actionEl) {
   if (action === 'deleteMerchant') {
     const name = actionEl.dataset.name;
     const confirmed = await showConfirm(
-      `Delete merchant "${name}"? Past expenses keep this merchant text — it just stops appearing as a suggestion.`,
+      `Delete merchant "${name}"? This will remove this merchant from all past expenses.`,
       { danger: true, yesLabel: 'Delete' }
     );
     if (!confirmed) return;

@@ -73,6 +73,12 @@ Two things were added during planning review, both agreed on beforehand:
 
 ## Changelog
 
+**v9.7 — Category Rename/Delete [Removed] Handling & Past Merchant Cleanup**
+- **Rename `[Removed]` Category**: Enabled renaming of the `[Removed]` category in the category rename menu so users can customize default fallback category names across all past expenses.
+- **Disabled `[Removed]` Category in Delete Menu**: Rendered `[Removed]` category as a visible but greyed-out, disabled item in the Delete Category screen to prevent system fallback category deletion.
+- **Past Expenses Merchant Cleanup**: Deleting a merchant now removes the merchant text from all past expenses and displays an updated confirmation prompt.
+- Home screen version tag bumped to **v9.7**; service worker cache bumped to `v18`.
+
 **v9.6 — Dedicated Inline '+' Button for Instant iOS Keypad Focus**
 - **iOS Keypad Focus Fix**: Replaced the `<select>` drop-down `+ Add Merchant...` option with an explicit, dedicated `+` button directly next to the merchant dropdown field. Tapping the `+` button is a clean, direct user gesture (bypassing native iOS select picker focus steals completely) that opens the modal and focuses `#modalInput` synchronously, bringing up the iPhone virtual keyboard automatically every single time.
 - Home screen version tag bumped to **v9.6**; service worker cache bumped to `v17`.
