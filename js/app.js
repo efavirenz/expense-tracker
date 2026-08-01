@@ -39,7 +39,7 @@ function applyAccentColor(hex) {
 applyAccentColor();
 
 // ⚠️ Keep in sync with CACHE_NAME in service-worker.js
-const APP_VERSION = 'v9.4';
+const APP_VERSION = 'v9.5';
 
 const appEl = document.getElementById('app');
 const titleEl = document.getElementById('pageTitle');
@@ -158,7 +158,7 @@ function downloadTextFile(filename, mime, content) {
   setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
 
-function showPrompt(title, placeholder) {
+function showPrompt(title, placeholder, proxyInput) {
   return new Promise(resolve => {
     modalRoot.innerHTML = `
       <div class="modal-backdrop" id="modalBackdrop">
@@ -214,6 +214,9 @@ function showPrompt(title, placeholder) {
     const cleanup = (val) => {
       window.removeEventListener('keydown', handleKeyDown);
       modalRoot.innerHTML = '';
+      if (proxyInput && proxyInput.parentNode) {
+        proxyInput.remove();
+      }
       resolve(val);
     };
 
@@ -223,7 +226,13 @@ function showPrompt(title, placeholder) {
     backdrop.addEventListener('click', (e) => {
       if (e.target.id === 'modalBackdrop') cleanup(null);
     });
-    setTimeout(() => { input.focus(); input.select(); }, 250);
+    setTimeout(() => {
+      input.focus();
+      input.select();
+      if (proxyInput && proxyInput.parentNode) {
+        proxyInput.remove();
+      }
+    }, 50);
   });
 }
 
@@ -259,7 +268,13 @@ function setupMerchantSelectListener(selectEl) {
   selectEl.addEventListener('change', async () => {
     if (selectEl.value === '__add__') {
       selectEl.blur();
-      const newName = await showPrompt('Add Merchant', 'e.g. Shopee, Lazada…');
+      const proxy = document.createElement('input');
+      proxy.type = 'text';
+      proxy.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0;width:1px;height:1px;';
+      document.body.appendChild(proxy);
+      proxy.focus();
+      const newName = await showPrompt('Add Merchant', 'e.g. Shopee, Lazada…', proxy);
+      if (proxy.parentNode) proxy.remove();
       if (newName) {
         const res = Store.addMerchant(newName);
         if (res.ok) {

@@ -1,5 +1,5 @@
 // ⚠️ Keep in sync with APP_VERSION in js/app.js
-const CACHE_NAME = 'expense-tracker-v15';
+const CACHE_NAME = 'expense-tracker-v16';
 const APP_SHELL = [
   './',
   './index.html',

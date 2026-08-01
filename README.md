@@ -73,6 +73,10 @@ Two things were added during planning review, both agreed on beforehand:
 
 ## Changelog
 
+**v9.5 — Proxy Input iOS Keypad Activation**
+- **Proxy Input Synchronous Focus**: Added off-screen proxy `<input>` focus synchronously inside the `<select>` user gesture `change` event handler, preserving the iOS Safari user-gesture chain and seamlessly transferring focus to `#modalInput` so the iPhone virtual keyboard appears reliably.
+- Home screen version tag bumped to **v9.5**; service worker cache bumped to `v16`.
+
 **v9.4 — iOS Keypad Auto-Focus on Add Merchant**
 - **iOS Keypad Focus Fix**: Explicitly blur `<select>` element upon choosing `+ Add Merchant...` and increase modal input focus delay to 250ms (plus `autofocus` attribute) to allow iOS native picker dismissal transition to finish without cancelling virtual keyboard activation.
 - Home screen version tag bumped to **v9.4**; service worker cache bumped to `v15`.
