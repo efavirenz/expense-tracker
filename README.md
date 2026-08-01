@@ -73,6 +73,10 @@ Two things were added during planning review, both agreed on beforehand:
 
 ## Changelog
 
+**v9.6 — Dedicated Inline '+' Button for Instant iOS Keypad Focus**
+- **iOS Keypad Focus Fix**: Replaced the `<select>` drop-down `+ Add Merchant...` option with an explicit, dedicated `+` button directly next to the merchant dropdown field. Tapping the `+` button is a clean, direct user gesture (bypassing native iOS select picker focus steals completely) that opens the modal and focuses `#modalInput` synchronously, bringing up the iPhone virtual keyboard automatically every single time.
+- Home screen version tag bumped to **v9.6**; service worker cache bumped to `v17`.
+
 **v9.5 — Proxy Input iOS Keypad Activation**
 - **Proxy Input Synchronous Focus**: Added off-screen proxy `<input>` focus synchronously inside the `<select>` user gesture `change` event handler, preserving the iOS Safari user-gesture chain and seamlessly transferring focus to `#modalInput` so the iPhone virtual keyboard appears reliably.
 - Home screen version tag bumped to **v9.5**; service worker cache bumped to `v16`.

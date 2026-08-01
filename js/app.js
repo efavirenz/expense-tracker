@@ -39,7 +39,7 @@ function applyAccentColor(hex) {
 applyAccentColor();
 
 // ⚠️ Keep in sync with CACHE_NAME in service-worker.js
-const APP_VERSION = 'v9.5';
+const APP_VERSION = 'v9.6';
 
 const appEl = document.getElementById('app');
 const titleEl = document.getElementById('pageTitle');
@@ -158,25 +158,63 @@ function downloadTextFile(filename, mime, content) {
   setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
 
-function showPrompt(title, placeholder, proxyInput) {
+function showPrompt(title, placeholder) {
   return new Promise(resolve => {
-    modalRoot.innerHTML = `
-      <div class="modal-backdrop" id="modalBackdrop">
-        <div class="modal-card" role="dialog" aria-modal="true">
-          <p class="modal-message" style="font-weight:600;margin-bottom:12px;">${escapeHtml(title)}</p>
-          <input type="text" id="modalInput" maxlength="100" placeholder="${escapeHtml(placeholder || '')}" style="margin-bottom:12px;" autofocus autocomplete="off">
-          <div id="modalInputError" class="form-error" hidden style="margin-bottom:12px;"></div>
-          <div class="modal-actions">
-            <button class="btn btn--ghost" id="modalNo">Cancel</button>
-            <button class="btn btn--primary" id="modalYes">Save</button>
-          </div>
-        </div>
-      </div>`;
-    const input = document.getElementById('modalInput');
-    const noBtn = document.getElementById('modalNo');
-    const yesBtn = document.getElementById('modalYes');
-    const backdrop = document.getElementById('modalBackdrop');
-    const errorEl = document.getElementById('modalInputError');
+    // Build modal using DOM APIs for synchronous focus (required for iOS keyboard)
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+    backdrop.id = 'modalBackdrop';
+
+    const card = document.createElement('div');
+    card.className = 'modal-card';
+    card.setAttribute('role', 'dialog');
+    card.setAttribute('aria-modal', 'true');
+
+    const msg = document.createElement('p');
+    msg.className = 'modal-message';
+    msg.style.cssText = 'font-weight:600;margin-bottom:12px;';
+    msg.textContent = title;
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.id = 'modalInput';
+    input.maxLength = 100;
+    input.placeholder = placeholder || '';
+    input.style.marginBottom = '12px';
+    input.autocomplete = 'off';
+
+    const errorEl = document.createElement('div');
+    errorEl.id = 'modalInputError';
+    errorEl.className = 'form-error';
+    errorEl.hidden = true;
+    errorEl.style.marginBottom = '12px';
+
+    const actions = document.createElement('div');
+    actions.className = 'modal-actions';
+
+    const noBtn = document.createElement('button');
+    noBtn.className = 'btn btn--ghost';
+    noBtn.id = 'modalNo';
+    noBtn.textContent = 'Cancel';
+
+    const yesBtn = document.createElement('button');
+    yesBtn.className = 'btn btn--primary';
+    yesBtn.id = 'modalYes';
+    yesBtn.textContent = 'Save';
+
+    actions.appendChild(noBtn);
+    actions.appendChild(yesBtn);
+    card.appendChild(msg);
+    card.appendChild(input);
+    card.appendChild(errorEl);
+    card.appendChild(actions);
+    backdrop.appendChild(card);
+
+    modalRoot.innerHTML = '';
+    modalRoot.appendChild(backdrop);
+
+    // Synchronous focus — preserves iOS user-gesture chain for keyboard activation
+    input.focus();
 
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
@@ -214,9 +252,6 @@ function showPrompt(title, placeholder, proxyInput) {
     const cleanup = (val) => {
       window.removeEventListener('keydown', handleKeyDown);
       modalRoot.innerHTML = '';
-      if (proxyInput && proxyInput.parentNode) {
-        proxyInput.remove();
-      }
       resolve(val);
     };
 
@@ -229,9 +264,6 @@ function showPrompt(title, placeholder, proxyInput) {
     setTimeout(() => {
       input.focus();
       input.select();
-      if (proxyInput && proxyInput.parentNode) {
-        proxyInput.remove();
-      }
     }, 50);
   });
 }
@@ -254,8 +286,7 @@ function merchantOptionsHtml(selected, includeExtra) {
     merchants = [includeExtra, ...merchants].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
   }
   const opts = [
-    `<option value="" ${!selected ? 'selected' : ''}>-- Optional --</option>`,
-    `<option value="__add__">+ Add Merchant&hellip;</option>`
+    `<option value="" ${!selected ? 'selected' : ''}>-- Optional --</option>`
   ];
   merchants.forEach(m => {
     opts.push(`<option value="${escapeHtml(m)}" ${m === selected ? 'selected' : ''}>${escapeHtml(m)}</option>`);
@@ -264,34 +295,8 @@ function merchantOptionsHtml(selected, includeExtra) {
 }
 
 function setupMerchantSelectListener(selectEl) {
-  let currentVal = selectEl.value;
-  selectEl.addEventListener('change', async () => {
-    if (selectEl.value === '__add__') {
-      selectEl.blur();
-      const proxy = document.createElement('input');
-      proxy.type = 'text';
-      proxy.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0;width:1px;height:1px;';
-      document.body.appendChild(proxy);
-      proxy.focus();
-      const newName = await showPrompt('Add Merchant', 'e.g. Shopee, Lazada…', proxy);
-      if (proxy.parentNode) proxy.remove();
-      if (newName) {
-        const res = Store.addMerchant(newName);
-        if (res.ok) {
-          showToast('Merchant added.');
-          selectEl.innerHTML = merchantOptionsHtml(newName, newName);
-          selectEl.value = newName;
-          currentVal = newName;
-        } else {
-          showToast(res.error, true);
-          selectEl.value = currentVal;
-        }
-      } else {
-        selectEl.value = currentVal;
-      }
-    } else {
-      currentVal = selectEl.value;
-    }
+  selectEl.addEventListener('change', () => {
+    // No special handling needed — __add__ option removed in v9.6
   });
 }
 
@@ -425,7 +430,10 @@ const Screens = {
           </label>
           <label class="field">
             <span class="field__label">Merchant (optional)</span>
-            <select id="expMerchant">${merchantOptionsHtml('', '')}</select>
+            <div class="field__row">
+              <select id="expMerchant">${merchantOptionsHtml('', '')}</select>
+              <button type="button" class="btn btn--outline merchant-add-btn" data-action="addMerchantInline" data-target="expMerchant" aria-label="Add new merchant">+</button>
+            </div>
           </label>
           <label class="field">
             <span class="field__label">Note (optional)</span>
@@ -835,7 +843,10 @@ const Screens = {
           </label>
           <label class="field">
             <span class="field__label">Merchant (optional)</span>
-            <select id="editMerchant">${merchantOptionsHtml(record.merchant || '', record.merchant || '')}</select>
+            <div class="field__row">
+              <select id="editMerchant">${merchantOptionsHtml(record.merchant || '', record.merchant || '')}</select>
+              <button type="button" class="btn btn--outline merchant-add-btn" data-action="addMerchantInline" data-target="editMerchant" aria-label="Add new merchant">+</button>
+            </div>
           </label>
           <label class="field">
             <span class="field__label">Note (optional)</span>
@@ -1266,6 +1277,23 @@ async function handleAction(actionEl) {
     if (!res.ok) { showToast(res.error, true); return; }
     showToast('Merchant deleted.');
     popToView('categoriesMenu');
+    return;
+  }
+
+  if (action === 'addMerchantInline') {
+    const targetId = actionEl.dataset.target;
+    const selectEl = document.getElementById(targetId);
+    const newName = await showPrompt('Add Merchant', 'e.g. Shopee, Lazada\u2026');
+    if (newName && selectEl) {
+      const res = Store.addMerchant(newName);
+      if (res.ok) {
+        showToast('Merchant added.');
+        selectEl.innerHTML = merchantOptionsHtml(newName, newName);
+        selectEl.value = newName;
+      } else {
+        showToast(res.error, true);
+      }
+    }
     return;
   }
 }

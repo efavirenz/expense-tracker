@@ -273,6 +273,20 @@ button, input, select {
 
 .field { display: flex; flex-direction: column; gap: 6px; }
 .field__label { font-size: 13px; color: var(--text-muted); font-weight: 600; }
+.field__row { display: flex; gap: 8px; align-items: center; }
+.field__row select { flex: 1; }
+.merchant-add-btn {
+  flex-shrink: 0;
+  width: 46px;
+  height: 46px;
+  padding: 0;
+  font-size: 20px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+}
 .field__static {
   padding: 12px 14px;
   background: var(--surface);
