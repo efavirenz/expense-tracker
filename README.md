@@ -73,6 +73,11 @@ Two things were added during planning review, both agreed on beforehand:
 
 ## Changelog
 
+**v9.2 — Merchant select dropdown, inline Add Merchant prompt & Date field alignment**
+- **Merchant Dropdown & Inline Add Prompt**: Converted `Merchant (optional)` text/datalist field in Add & Edit Expense forms into a `<select>` dropdown with `-- Optional --` default. Added a `+ Add Merchant…` option that pops up an interactive modal prompt for creating new merchants on-the-fly.
+- **Date Field Layout Fix**: Fixed `input[type="date"]` appearance and layout sizing (`-webkit-appearance: none`, `min-height: 46px`, `box-sizing: border-box`, `max-width: 100%`) so Date field width perfectly aligns with all other form controls across iOS Safari and desktop browsers.
+- Home screen version tag bumped to **v9.2**; service worker cache bumped to `v13`.
+
 **v9.1 — Search text auto-focus & Interactive Version Badge force update**
 - **Search Text Auto-Focus**: Opening the `Search Expenses` screen automatically focuses and selects the `Search Text` field so the keypad appears automatically on iOS devices.
 - **Software Force Update & Interactive Version Badge**: Updated top right homepage badge to `v9.1`. Added automatic service worker update checks on launch (`reg.update()`). Tapping the `v9.1` version badge unregisters service workers, clears cache storage, and reloads to guarantee instantaneous client updates.

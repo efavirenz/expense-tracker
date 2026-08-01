@@ -38,7 +38,7 @@ function applyAccentColor(hex) {
 
 applyAccentColor();
 
-const APP_VERSION = 'v9.1';
+const APP_VERSION = 'v9.2';
 
 const appEl = document.getElementById('app');
 const titleEl = document.getElementById('pageTitle');
@@ -153,6 +153,61 @@ function downloadTextFile(filename, mime, content) {
   setTimeout(() => URL.revokeObjectURL(url), 10000);
 }
 
+function showPrompt(title, placeholder) {
+  return new Promise(resolve => {
+    modalRoot.innerHTML = `
+      <div class="modal-backdrop" id="modalBackdrop">
+        <div class="modal-card" role="dialog" aria-modal="true">
+          <p class="modal-message" style="font-weight:600;margin-bottom:12px;">${escapeHtml(title)}</p>
+          <input type="text" id="modalInput" maxlength="100" placeholder="${escapeHtml(placeholder || '')}" style="margin-bottom:12px;" autocomplete="off">
+          <div id="modalInputError" class="form-error" hidden style="margin-bottom:12px;"></div>
+          <div class="modal-actions">
+            <button class="btn btn--ghost" id="modalNo">Cancel</button>
+            <button class="btn btn--primary" id="modalYes">Save</button>
+          </div>
+        </div>
+      </div>`;
+    const input = document.getElementById('modalInput');
+    const noBtn = document.getElementById('modalNo');
+    const yesBtn = document.getElementById('modalYes');
+    const backdrop = document.getElementById('modalBackdrop');
+    const errorEl = document.getElementById('modalInputError');
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        cleanup(null);
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        submit();
+      }
+    };
+
+    const submit = () => {
+      const val = input.value.trim();
+      if (!val) {
+        errorEl.textContent = 'Please enter a name.';
+        errorEl.hidden = false;
+        return;
+      }
+      cleanup(val);
+    };
+
+    const cleanup = (val) => {
+      window.removeEventListener('keydown', handleKeyDown);
+      modalRoot.innerHTML = '';
+      resolve(val);
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    yesBtn.addEventListener('click', submit);
+    noBtn.addEventListener('click', () => cleanup(null));
+    backdrop.addEventListener('click', (e) => {
+      if (e.target.id === 'modalBackdrop') cleanup(null);
+    });
+    setTimeout(() => { input.focus(); input.select(); }, 50);
+  });
+}
+
 function categoryOptionsHtml(selected, includeExtra) {
   let cats = Store.getSelectableCategories();
   if (includeExtra && !cats.includes(includeExtra) && includeExtra !== '') {
@@ -165,9 +220,44 @@ function categoryOptionsHtml(selected, includeExtra) {
   return opts.join('');
 }
 
-function merchantDatalistHtml() {
-  const merchants = Store.getMerchants();
-  return `<datalist id="merchantList">${merchants.map(m => `<option value="${escapeHtml(m)}">`).join('')}</datalist>`;
+function merchantOptionsHtml(selected, includeExtra) {
+  let merchants = Store.getMerchants();
+  if (includeExtra && !merchants.includes(includeExtra) && includeExtra !== '') {
+    merchants = [includeExtra, ...merchants].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+  }
+  const opts = [
+    `<option value="" ${!selected ? 'selected' : ''}>-- Optional --</option>`,
+    `<option value="__add__">+ Add Merchant&hellip;</option>`
+  ];
+  merchants.forEach(m => {
+    opts.push(`<option value="${escapeHtml(m)}" ${m === selected ? 'selected' : ''}>${escapeHtml(m)}</option>`);
+  });
+  return opts.join('');
+}
+
+function setupMerchantSelectListener(selectEl) {
+  let currentVal = selectEl.value;
+  selectEl.addEventListener('change', async () => {
+    if (selectEl.value === '__add__') {
+      const newName = await showPrompt('Add Merchant', 'e.g. Shopee, Lazada…');
+      if (newName) {
+        const res = Store.addMerchant(newName);
+        if (res.ok) {
+          showToast('Merchant added.');
+          selectEl.innerHTML = merchantOptionsHtml(newName, newName);
+          selectEl.value = newName;
+          currentVal = newName;
+        } else {
+          showToast(res.error, true);
+          selectEl.value = currentVal;
+        }
+      } else {
+        selectEl.value = currentVal;
+      }
+    } else {
+      currentVal = selectEl.value;
+    }
+  });
 }
 
 function renderSummaryTable(rows, total, showMerchants = true, periodStart = '', periodEnd = '') {
@@ -300,9 +390,8 @@ const Screens = {
           </label>
           <label class="field">
             <span class="field__label">Merchant (optional)</span>
-            <input type="text" id="expMerchant" list="merchantList" maxlength="100" placeholder="e.g. Shopee, Lazada&hellip;" autocomplete="off">
+            <select id="expMerchant">${merchantOptionsHtml('', '')}</select>
           </label>
-          ${merchantDatalistHtml()}
           <label class="field">
             <span class="field__label">Note (optional)</span>
             <textarea id="expNote" rows="2" maxlength="500" placeholder="Add a note&hellip;"></textarea>
@@ -317,6 +406,10 @@ const Screens = {
         if (amtInput) {
           amtInput.focus();
           amtInput.select();
+        }
+        const merchSelect = document.getElementById('expMerchant');
+        if (merchSelect) {
+          setupMerchantSelectListener(merchSelect);
         }
         document.getElementById('expenseForm').addEventListener('submit', (e) => {
           e.preventDefault();
@@ -707,9 +800,8 @@ const Screens = {
           </label>
           <label class="field">
             <span class="field__label">Merchant (optional)</span>
-            <input type="text" id="editMerchant" list="merchantList" maxlength="100" value="${escapeHtml(record.merchant || '')}" placeholder="e.g. Shopee, Lazada&hellip;" autocomplete="off">
+            <select id="editMerchant">${merchantOptionsHtml(record.merchant || '', record.merchant || '')}</select>
           </label>
-          ${merchantDatalistHtml()}
           <label class="field">
             <span class="field__label">Note (optional)</span>
             <textarea id="editNote" rows="2" maxlength="500" placeholder="Add a note&hellip;">${escapeHtml(record.note || '')}</textarea>
@@ -721,6 +813,10 @@ const Screens = {
           </div>
         </form>`,
       afterRender() {
+        const editMerchSelect = document.getElementById('editMerchant');
+        if (editMerchSelect) {
+          setupMerchantSelectListener(editMerchSelect);
+        }
         document.getElementById('expenseEditForm').addEventListener('submit', (e) => {
           e.preventDefault();
           const date = document.getElementById('editDate').value;

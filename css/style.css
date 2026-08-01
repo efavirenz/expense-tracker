@@ -288,6 +288,14 @@ input[type="text"], input[type="number"], input[type="date"], input[type="month"
   border-radius: 10px;
   color: var(--text);
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+input[type="date"], input[type="month"] {
+  -webkit-appearance: none;
+  appearance: none;
+  min-height: 46px;
 }
 input[type="number"] { font-family: var(--font-num); }
 textarea {
