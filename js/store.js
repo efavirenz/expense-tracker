@@ -109,6 +109,13 @@ const Store = (function () {
     return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
   }
 
+  function isValidCalendarDate(dateStr) {
+    if (typeof dateStr !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return false;
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const date = new Date(y, m - 1, d);
+    return date.getFullYear() === y && date.getMonth() === m - 1 && date.getDate() === d;
+  }
+
   function todayISO() {
     const d = new Date();
     const y = d.getFullYear();
@@ -132,9 +139,18 @@ const Store = (function () {
 
   // ---------- Categories ----------
 
+  let cachedSortedCategories = null;
+  let cachedRawCategoriesRef = null;
+
   function getCategories() {
     const cats = readJSON(STORAGE_KEYS.categories, DEFAULT_CATEGORIES.slice());
-    return cats.slice().sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+    if (cachedSortedCategories && cachedRawCategoriesRef === cache[STORAGE_KEYS.categories]) {
+      return cachedSortedCategories.slice();
+    }
+    const sorted = cats.slice().sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+    cachedRawCategoriesRef = cache[STORAGE_KEYS.categories];
+    cachedSortedCategories = sorted;
+    return sorted.slice();
   }
 
   function categoryExists(name, categories) {
@@ -160,25 +176,30 @@ const Store = (function () {
     if (newName === oldName) {
       return { ok: false, error: 'ชื่อใหม่เหมือนชื่อเดิม' };
     }
-    const categories = getCategories();
-    const otherCategories = categories.filter(c => c !== oldName);
+    const oldCategories = getCategories();
+    const otherCategories = oldCategories.filter(c => c !== oldName);
     if (categoryExists(newName, otherCategories)) {
       return { ok: false, error: `มีหมวดหมู่ชื่อ "${newName}" อยู่แล้ว กรุณาใช้ชื่ออื่น` };
     }
-    const idx = categories.findIndex(c => c === oldName);
+    const idx = oldCategories.findIndex(c => c === oldName);
     if (idx === -1) return { ok: false, error: 'ไม่พบหมวดหมู่นี้' };
+    const categories = oldCategories.slice();
     categories[idx] = newName;
     const res1 = writeJSON(STORAGE_KEYS.categories, categories);
     if (!res1.ok) return res1;
 
-    const expenses = getExpenses();
+    const oldExpenses = getExpenses();
+    const expenses = deepClone(oldExpenses);
     let changed = false;
     expenses.forEach(e => {
       if (e.category === oldName) { e.category = newName; changed = true; }
     });
     if (changed) {
       const res2 = writeJSON(STORAGE_KEYS.expenses, expenses);
-      if (!res2.ok) return res2;
+      if (!res2.ok) {
+        writeJSON(STORAGE_KEYS.categories, oldCategories);
+        return res2;
+      }
     }
 
     return { ok: true };
@@ -186,18 +207,23 @@ const Store = (function () {
 
   function deleteCategory(name) {
     if (name === RESERVED_CATEGORY) return { ok: false, error: 'ไม่สามารถลบหมวดหมู่นี้ได้' };
-    const categories = getCategories().filter(c => c !== name);
+    const oldCategories = getCategories();
+    const categories = oldCategories.filter(c => c !== name);
     const res1 = writeJSON(STORAGE_KEYS.categories, categories);
     if (!res1.ok) return res1;
 
-    const expenses = getExpenses();
+    const oldExpenses = getExpenses();
+    const expenses = deepClone(oldExpenses);
     let changed = false;
     expenses.forEach(e => {
       if (e.category === name) { e.category = RESERVED_CATEGORY; changed = true; }
     });
     if (changed) {
       const res2 = writeJSON(STORAGE_KEYS.expenses, expenses);
-      if (!res2.ok) return res2;
+      if (!res2.ok) {
+        writeJSON(STORAGE_KEYS.categories, oldCategories);
+        return res2;
+      }
     }
 
     return { ok: true };
@@ -248,25 +274,30 @@ const Store = (function () {
     } else if (newName.toLowerCase() === oldName.toLowerCase()) {
       return { ok: false, error: 'ชื่อใหม่เหมือนชื่อเดิม' };
     }
-    const merchants = getMerchants();
-    const otherMerchants = merchants.filter(m => m !== oldName);
+    const oldMerchants = getMerchants();
+    const otherMerchants = oldMerchants.filter(m => m !== oldName);
     if (merchantExists(newName, otherMerchants)) {
       return { ok: false, error: `มีร้านค้าชื่อ "${newName}" อยู่แล้ว กรุณาใช้ชื่ออื่น` };
     }
-    const idx = merchants.findIndex(m => m === oldName);
+    const idx = oldMerchants.findIndex(m => m === oldName);
     if (idx === -1) return { ok: false, error: 'ไม่พบร้านค้านี้' };
+    const merchants = oldMerchants.slice();
     merchants[idx] = newName;
     const res1 = writeJSON(STORAGE_KEYS.merchants, merchants);
     if (!res1.ok) return res1;
 
-    const expenses = getExpenses();
+    const oldExpenses = getExpenses();
+    const expenses = deepClone(oldExpenses);
     let changed = false;
     expenses.forEach(e => {
       if (e.merchant === oldName) { e.merchant = newName; changed = true; }
     });
     if (changed) {
       const res2 = writeJSON(STORAGE_KEYS.expenses, expenses);
-      if (!res2.ok) return res2;
+      if (!res2.ok) {
+        writeJSON(STORAGE_KEYS.merchants, oldMerchants);
+        return res2;
+      }
     }
 
     return { ok: true };
@@ -294,7 +325,7 @@ const Store = (function () {
   function addExpense({ date, amount, category, merchant, note }) {
     const amt = validateAmount(amount);
     if (!amt.ok) return amt;
-    if (!date) return { ok: false, error: 'กรุณาเลือกวันที่' };
+    if (!date || !isValidCalendarDate(date)) return { ok: false, error: 'กรุณาเลือกวันที่ที่ถูกต้อง' };
     if (date > todayISO()) return { ok: false, error: 'วันที่ต้องไม่เป็นวันในอนาคต' };
     if (!category || category === RESERVED_CATEGORY) {
       return { ok: false, error: 'กรุณาเลือกหมวดหมู่' };
@@ -320,7 +351,7 @@ const Store = (function () {
   function updateExpense(id, { date, amount, category, merchant, note }) {
     const amt = validateAmount(amount);
     if (!amt.ok) return amt;
-    if (!date) return { ok: false, error: 'กรุณาเลือกวันที่' };
+    if (!date || !isValidCalendarDate(date)) return { ok: false, error: 'กรุณาเลือกวันที่ที่ถูกต้อง' };
     if (date > todayISO()) return { ok: false, error: 'วันที่ต้องไม่เป็นวันในอนาคต' };
     if (!category) return { ok: false, error: 'กรุณาเลือกหมวดหมู่' };
     const expenses = getExpenses();
@@ -391,13 +422,13 @@ const Store = (function () {
     if (!q) return [];
     return getExpenses()
       .filter(e => {
-        const month = e.date.slice(0, 7);
+        const month = (e.date || '').slice(0, 7);
         if (startMonth && month < startMonth) return false;
         if (endMonth && month > endMonth) return false;
-        return e.category.toLowerCase().includes(q)
+        return (e.category || '').toLowerCase().includes(q)
             || (e.merchant || '').toLowerCase().includes(q)
             || (e.note || '').toLowerCase().includes(q)
-            || String(e.amount).includes(q);
+            || String(e.amount || 0).includes(q);
       })
       .sort(compareExpenseSort);
   }
@@ -407,7 +438,8 @@ const Store = (function () {
   function summarizeByCategory(expenseList) {
     const totals = {};
     expenseList.forEach(e => {
-      totals[e.category] = (totals[e.category] || 0) + e.amount;
+      const cat = e.category || RESERVED_CATEGORY;
+      totals[cat] = (totals[cat] || 0) + (e.amount || 0);
     });
     return Object.keys(totals)
       .sort((a, b) => totals[b] - totals[a])
@@ -418,10 +450,11 @@ const Store = (function () {
     const catRows = summarizeByCategory(expenseList);
     const merchantTotalsByCat = {};
     expenseList.forEach(e => {
+      const cat = e.category || RESERVED_CATEGORY;
       const merchantKey = (e.merchant || '').trim() || NO_MERCHANT_LABEL;
-      if (!merchantTotalsByCat[e.category]) merchantTotalsByCat[e.category] = {};
-      merchantTotalsByCat[e.category][merchantKey] =
-        (merchantTotalsByCat[e.category][merchantKey] || 0) + e.amount;
+      if (!merchantTotalsByCat[cat]) merchantTotalsByCat[cat] = {};
+      merchantTotalsByCat[cat][merchantKey] =
+        (merchantTotalsByCat[cat][merchantKey] || 0) + (e.amount || 0);
     });
     return catRows.map(catRow => {
       const merchantTotals = merchantTotalsByCat[catRow.category] || {};
@@ -433,7 +466,7 @@ const Store = (function () {
   }
 
   function grandTotal(expenseList) {
-    return Math.round(expenseList.reduce((s, e) => s + e.amount, 0) * 100) / 100;
+    return Math.round(expenseList.reduce((s, e) => s + (e.amount || 0), 0) * 100) / 100;
   }
 
   // ---------- CSV export ----------
@@ -452,7 +485,7 @@ const Store = (function () {
         lines.push(`,${csvEscape(m.merchant)},${m.total.toFixed(2)}`);
       });
     });
-    return lines.join('\n');
+    return '\uFEFF' + lines.join('\n');
   }
 
   function expensesToCSV(expenseList) {
@@ -468,11 +501,11 @@ const Store = (function () {
         csvEscape(e.date),
         csvEscape(e.category),
         csvEscape(e.merchant || ''),
-        e.amount.toFixed(2),
+        (e.amount || 0).toFixed(2),
         csvEscape(e.note || '')
       ].join(','));
     });
-    return lines.join('\n');
+    return '\uFEFF' + lines.join('\n');
   }
 
   // ---------- JSON backup / restore ----------
@@ -503,15 +536,31 @@ const Store = (function () {
     if (!Array.isArray(data.categories) || !Array.isArray(data.expenses)) {
       return { ok: false, error: 'โครงสร้างไฟล์ไม่ถูกต้อง (ต้องมี categories และ expenses)' };
     }
-    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (data.expenses.length > 50000) {
+      return { ok: false, error: 'ไฟล์มีรายการมากเกินไป (สูงสุด 50,000 รายการ)' };
+    }
+    if (data.categories.length > 500) {
+      return { ok: false, error: 'ไฟล์มีหมวดหมู่มากเกินไป (สูงสุด 500 หมวดหมู่)' };
+    }
+    if (Array.isArray(data.merchants) && data.merchants.length > 500) {
+      return { ok: false, error: 'ไฟล์มีร้านค้ามากเกินไป (สูงสุด 500 ร้านค้า)' };
+    }
+
     const maxAllowedDate = tomorrowISO();
     const validExpenses = data.expenses.every(e =>
-      e && typeof e.date === 'string' && dateRegex.test(e.date) && e.date <= maxAllowedDate &&
+      e && typeof e.date === 'string' && isValidCalendarDate(e.date) && e.date <= maxAllowedDate &&
       typeof e.amount === 'number' && e.amount > 0 &&
-      typeof e.category === 'string' && e.category.trim() !== ''
+      typeof e.category === 'string' && e.category.trim() !== '' && e.category.length <= 100 &&
+      (e.merchant === undefined || e.merchant === null || (typeof e.merchant === 'string' && e.merchant.length <= 100)) &&
+      (e.note === undefined || e.note === null || (typeof e.note === 'string' && e.note.length <= 500))
     );
     if (!validExpenses) {
-      return { ok: false, error: 'พบข้อมูลรายการที่ไม่ถูกต้องในไฟล์ (เช่น วันในอนาคต หรือ จำนวนเงินติดลบ)' };
+      return { ok: false, error: 'พบข้อมูลรายการที่ไม่ถูกต้องในไฟล์ (เช่น วันที่ไม่อยู่ใน ปฏิทิน, วันในอนาคต, หรือ จำนวนเงินติดลบ)' };
+    }
+
+    const validCategories = data.categories.every(c => typeof c === 'string' && c.trim() !== '' && c.length <= 100);
+    if (!validCategories) {
+      return { ok: false, error: 'พบชื่อหมวดหมู่ที่ไม่ถูกต้องในไฟล์' };
     }
 
     const seenIds = new Set();
@@ -523,31 +572,31 @@ const Store = (function () {
         id,
         date: e.date,
         amount: Math.round(e.amount * 100) / 100,
-        category: e.category,
-        merchant: typeof e.merchant === 'string' ? e.merchant : '',
-        note: typeof e.note === 'string' ? e.note : '',
+        category: e.category.trim(),
+        merchant: typeof e.merchant === 'string' ? e.merchant.trim() : '',
+        note: typeof e.note === 'string' ? e.note.trim() : '',
         createdAt: e.createdAt || new Date().toISOString(),
         updatedAt: e.updatedAt || undefined
       };
     });
 
-    const res1 = writeJSON(STORAGE_KEYS.categories, data.categories);
+    const res1 = writeJSON(STORAGE_KEYS.categories, data.categories.map(c => c.trim()));
     if (!res1.ok) return res1;
     const res2 = writeJSON(STORAGE_KEYS.expenses, expenses);
     if (!res2.ok) return res2;
 
-    const existingMerchants = getMerchants();
-    const seen = new Set(existingMerchants.map(m => m.toLowerCase()));
-    const mergedMerchants = existingMerchants.slice();
+    // Point-in-time full replacement for merchants (F-001)
+    const seenMerchants = new Set();
+    const restoredMerchants = [];
     const candidateMerchants = (Array.isArray(data.merchants) ? data.merchants : [])
       .concat(expenses.map(e => e.merchant));
     candidateMerchants.forEach(m => {
-      const name = (m || '').trim();
+      const name = (typeof m === 'string' ? m : '').trim();
       if (!name) return;
       const key = name.toLowerCase();
-      if (!seen.has(key)) { seen.add(key); mergedMerchants.push(name); }
+      if (!seenMerchants.has(key)) { seenMerchants.add(key); restoredMerchants.push(name); }
     });
-    const res3 = writeJSON(STORAGE_KEYS.merchants, mergedMerchants);
+    const res3 = writeJSON(STORAGE_KEYS.merchants, restoredMerchants);
     if (!res3.ok) return res3;
 
     if (data.accentColor && typeof data.accentColor === 'string') {

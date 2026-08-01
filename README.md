@@ -73,6 +73,13 @@ Two things were added during planning review, both agreed on beforehand:
 
 ## Changelog
 
+**v9.3 — Technical audit remediation, data safety & security hardening**
+- **Data Integrity & Rollback**: Added transaction rollback for multi-key storage updates (`renameCategory`, `deleteCategory`, `renameMerchant`) so partial storage quota failures never leave orphaned references. Standardized `importBackup` to perform point-in-time full merchant state replacement.
+- **Validation & Input Limits**: Added strict calendar date validation (`isValidCalendarDate`) preventing non-existent calendar dates (e.g. `2026-02-31`). Enforced payload boundary limits on backup JSON import (max 50k expenses, 500 categories/merchants, string length checks).
+- **Excel Thai CSV Encoding**: Added UTF-8 Byte Order Mark (`\uFEFF`) to CSV exports ensuring Thai text renders correctly when opened in Microsoft Excel on Windows.
+- **Accessibility & Router Hardening**: Escaped modal option buttons with `escapeHtml()`, added Tab focus trap inside modal dialogs, added route fallback guard in main render loop to prevent blank screen crashes on invalid views, and enabled `{ ignoreSearch: true }` in Service Worker offline fetch handling.
+- Home screen version tag bumped to **v9.3**; service worker cache bumped to `v14`.
+
 **v9.2 — Merchant select dropdown, inline Add Merchant prompt & Date field alignment**
 - **Merchant Dropdown & Inline Add Prompt**: Converted `Merchant (optional)` text/datalist field in Add & Edit Expense forms into a `<select>` dropdown with `-- Optional --` default. Added a `+ Add Merchant…` option that pops up an interactive modal prompt for creating new merchants on-the-fly.
 - **Date Field Layout Fix**: Fixed `input[type="date"]` appearance and layout sizing (`-webkit-appearance: none`, `min-height: 46px`, `box-sizing: border-box`, `max-width: 100%`) so Date field width perfectly aligns with all other form controls across iOS Safari and desktop browsers.

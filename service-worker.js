@@ -1,4 +1,5 @@
-const CACHE_NAME = 'expense-tracker-v13';
+// ⚠️ Keep in sync with APP_VERSION in js/app.js
+const CACHE_NAME = 'expense-tracker-v14';
 const APP_SHELL = [
   './',
   './index.html',
@@ -34,7 +35,7 @@ self.addEventListener('fetch', (event) => {
   if (url.origin !== self.location.origin) return;
 
   event.respondWith(
-    caches.match(event.request).then((cached) => {
+    caches.match(event.request, { ignoreSearch: true }).then((cached) => {
       const fetchPromise = fetch(event.request).then((networkResponse) => {
         if (networkResponse && networkResponse.status === 200) {
           const copy = networkResponse.clone();

@@ -38,7 +38,8 @@ function applyAccentColor(hex) {
 
 applyAccentColor();
 
-const APP_VERSION = 'v9.2';
+// ⚠️ Keep in sync with CACHE_NAME in service-worker.js
+const APP_VERSION = 'v9.3';
 
 const appEl = document.getElementById('app');
 const titleEl = document.getElementById('pageTitle');
@@ -94,8 +95,8 @@ function showConfirm(message, opts) {
         <div class="modal-card" role="alertdialog" aria-modal="true">
           <p class="modal-message">${escapeHtml(message)}</p>
           <div class="modal-actions">
-            <button class="btn btn--ghost" id="modalNo" autofocus>${opts.noLabel || 'Cancel'}</button>
-            <button class="btn ${opts.danger ? 'btn--danger' : 'btn--primary'}" id="modalYes">${opts.yesLabel || 'Yes'}</button>
+            <button class="btn btn--ghost" id="modalNo" autofocus>${escapeHtml(opts.noLabel || 'Cancel')}</button>
+            <button class="btn ${opts.danger ? 'btn--danger' : 'btn--primary'}" id="modalYes">${escapeHtml(opts.yesLabel || 'Yes')}</button>
           </div>
         </div>
       </div>`;
@@ -107,14 +108,18 @@ function showConfirm(message, opts) {
       if (e.key === 'Escape') {
         cleanup(false);
       } else if (e.key === 'Tab') {
-        const focusables = [noBtn, yesBtn];
+        const focusables = [noBtn, yesBtn].filter(Boolean);
         const idx = focusables.indexOf(document.activeElement);
-        if (e.shiftKey && idx === 0) {
-          e.preventDefault();
-          yesBtn.focus();
-        } else if (!e.shiftKey && idx === focusables.length - 1) {
-          e.preventDefault();
-          noBtn.focus();
+        if (e.shiftKey) {
+          if (idx <= 0) {
+            e.preventDefault();
+            focusables[focusables.length - 1].focus();
+          }
+        } else {
+          if (idx === -1 || idx >= focusables.length - 1) {
+            e.preventDefault();
+            focusables[0].focus();
+          }
         }
       }
     };
@@ -150,7 +155,7 @@ function downloadTextFile(filename, mime, content) {
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 10000);
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
 
 function showPrompt(title, placeholder) {
@@ -179,6 +184,20 @@ function showPrompt(title, placeholder) {
       } else if (e.key === 'Enter') {
         e.preventDefault();
         submit();
+      } else if (e.key === 'Tab') {
+        const focusables = [input, noBtn, yesBtn].filter(Boolean);
+        const idx = focusables.indexOf(document.activeElement);
+        if (e.shiftKey) {
+          if (idx <= 0) {
+            e.preventDefault();
+            focusables[focusables.length - 1].focus();
+          }
+        } else {
+          if (idx === -1 || idx >= focusables.length - 1) {
+            e.preventDefault();
+            focusables[0].focus();
+          }
+        }
       }
     };
 
@@ -1165,10 +1184,6 @@ async function handleAction(actionEl) {
       console.error('Force update failed:', err);
     }
     window.location.reload();
-    setTimeout(() => {
-      actionEl.textContent = APP_VERSION;
-      actionEl.classList.remove('updating');
-    }, 1000);
     return;
   }
 
@@ -1260,6 +1275,11 @@ if (homeBtn) {
 
 function render() {
   const screenState = topScreen();
+  if (!screenState || !Screens[screenState.view] || typeof Screens[screenState.view] !== 'function') {
+    console.error('Unknown screen view:', screenState ? screenState.view : screenState);
+    state.stack = [{ view: 'home' }];
+    return render();
+  }
   if (screenState.view !== 'changeColor') {
     applyAccentColor();
   }
