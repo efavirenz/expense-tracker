@@ -73,6 +73,10 @@ Two things were added during planning review, both agreed on beforehand:
 
 ## Changelog
 
+**v9.8 — Full English Translation for Error Messages**
+- **English System Messages**: Translated all remaining internal Thai error messages and validation alerts across `js/store.js` into clear, professional English messages.
+- Home screen version tag bumped to **v9.8**; service worker cache bumped to `v18` -> `v19`.
+
 **v9.7 — Category Rename/Delete [Removed] Handling & Past Merchant Cleanup**
 - **Rename `[Removed]` Category**: Enabled renaming of the `[Removed]` category in the category rename menu so users can customize default fallback category names across all past expenses.
 - **Disabled `[Removed]` Category in Delete Menu**: Rendered `[Removed]` category as a visible but greyed-out, disabled item in the Delete Category screen to prevent system fallback category deletion.

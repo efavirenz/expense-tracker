@@ -59,7 +59,7 @@ const Store = (function () {
     } catch (e) {
       delete cache[key];
       console.error('Store write error for', key, e);
-      return { ok: false, error: 'หน่วยความจำเต็ม ไม่สามารถบันทึกข้อมูลได้ (Storage Quota Exceeded)' };
+      return { ok: false, error: 'Storage quota exceeded. Unable to save data.' };
     }
   }
 
@@ -162,8 +162,8 @@ const Store = (function () {
 
   function addCategory(rawName) {
     const name = (rawName || '').trim();
-    if (!name) return { ok: false, error: 'กรุณากรอกชื่อหมวดหมู่' };
-    if (categoryExists(name)) return { ok: false, error: `มีหมวดหมู่ชื่อ "${name}" อยู่แล้ว` };
+    if (!name) return { ok: false, error: 'Please enter a category name.' };
+    if (categoryExists(name)) return { ok: false, error: `Category "${name}" already exists.` };
     const categories = getCategories();
     categories.push(name);
     return writeJSON(STORAGE_KEYS.categories, categories);
@@ -171,17 +171,17 @@ const Store = (function () {
 
   function renameCategory(oldName, rawNewName) {
     const newName = (rawNewName || '').trim();
-    if (!newName) return { ok: false, error: 'กรุณากรอกชื่อใหม่' };
+    if (!newName) return { ok: false, error: 'Please enter a new name.' };
     if (newName === oldName) {
-      return { ok: false, error: 'ชื่อใหม่เหมือนชื่อเดิม' };
+      return { ok: false, error: 'New name must be different from current name.' };
     }
     const oldCategories = getCategories();
     const otherCategories = oldCategories.filter(c => c !== oldName);
     if (categoryExists(newName, otherCategories)) {
-      return { ok: false, error: `มีหมวดหมู่ชื่อ "${newName}" อยู่แล้ว กรุณาใช้ชื่ออื่น` };
+      return { ok: false, error: `Category "${newName}" already exists. Please choose a different name.` };
     }
     const idx = oldCategories.findIndex(c => c === oldName);
-    if (idx === -1) return { ok: false, error: 'ไม่พบหมวดหมู่นี้' };
+    if (idx === -1) return { ok: false, error: 'Category not found.' };
     const categories = oldCategories.slice();
     categories[idx] = newName;
     const res1 = writeJSON(STORAGE_KEYS.categories, categories);
@@ -205,7 +205,7 @@ const Store = (function () {
   }
 
   function deleteCategory(name) {
-    if (name === RESERVED_CATEGORY) return { ok: false, error: 'ไม่สามารถลบหมวดหมู่นี้ได้' };
+    if (name === RESERVED_CATEGORY) return { ok: false, error: 'Cannot delete reserved category.' };
     const oldCategories = getCategories();
     const categories = oldCategories.filter(c => c !== name);
     const res1 = writeJSON(STORAGE_KEYS.categories, categories);
@@ -258,8 +258,8 @@ const Store = (function () {
 
   function addMerchant(rawName) {
     const name = (rawName || '').trim();
-    if (!name) return { ok: false, error: 'กรุณากรอกชื่อร้านค้า' };
-    if (merchantExists(name)) return { ok: false, error: `มีร้านค้าชื่อ "${name}" อยู่แล้ว` };
+    if (!name) return { ok: false, error: 'Please enter a merchant name.' };
+    if (merchantExists(name)) return { ok: false, error: `Merchant "${name}" already exists.` };
     const merchants = getMerchants();
     merchants.push(name);
     return writeJSON(STORAGE_KEYS.merchants, merchants);
@@ -267,19 +267,19 @@ const Store = (function () {
 
   function renameMerchant(oldName, rawNewName) {
     const newName = (rawNewName || '').trim();
-    if (!newName) return { ok: false, error: 'กรุณากรอกชื่อใหม่' };
+    if (!newName) return { ok: false, error: 'Please enter a new name.' };
     if (newName.toLowerCase() === oldName.toLowerCase() && newName !== oldName) {
       // allow casing change
     } else if (newName.toLowerCase() === oldName.toLowerCase()) {
-      return { ok: false, error: 'ชื่อใหม่เหมือนชื่อเดิม' };
+      return { ok: false, error: 'New name must be different from current name.' };
     }
     const oldMerchants = getMerchants();
     const otherMerchants = oldMerchants.filter(m => m !== oldName);
     if (merchantExists(newName, otherMerchants)) {
-      return { ok: false, error: `มีร้านค้าชื่อ "${newName}" อยู่แล้ว กรุณาใช้ชื่ออื่น` };
+      return { ok: false, error: `Merchant "${newName}" already exists. Please choose a different name.` };
     }
     const idx = oldMerchants.findIndex(m => m === oldName);
-    if (idx === -1) return { ok: false, error: 'ไม่พบร้านค้านี้' };
+    if (idx === -1) return { ok: false, error: 'Merchant not found.' };
     const merchants = oldMerchants.slice();
     merchants[idx] = newName;
     const res1 = writeJSON(STORAGE_KEYS.merchants, merchants);
@@ -336,7 +336,7 @@ const Store = (function () {
   function validateAmount(rawAmount) {
     const amount = parseFloat(rawAmount);
     if (isNaN(amount) || amount <= 0) {
-      return { ok: false, error: 'จำนวนเงินต้องเป็นตัวเลขมากกว่า 0' };
+      return { ok: false, error: 'Amount must be a number greater than 0.' };
     }
     return { ok: true, value: Math.round(amount * 100) / 100 };
   }
@@ -344,10 +344,10 @@ const Store = (function () {
   function addExpense({ date, amount, category, merchant, note }) {
     const amt = validateAmount(amount);
     if (!amt.ok) return amt;
-    if (!date || !isValidCalendarDate(date)) return { ok: false, error: 'กรุณาเลือกวันที่ที่ถูกต้อง' };
-    if (date > todayISO()) return { ok: false, error: 'วันที่ต้องไม่เป็นวันในอนาคต' };
+    if (!date || !isValidCalendarDate(date)) return { ok: false, error: 'Please select a valid date.' };
+    if (date > todayISO()) return { ok: false, error: 'Date cannot be in the future.' };
     if (!category || category === RESERVED_CATEGORY) {
-      return { ok: false, error: 'กรุณาเลือกหมวดหมู่' };
+      return { ok: false, error: 'Please select a category.' };
     }
     const expenses = getExpenses();
     const merchantName = (merchant || '').trim();
@@ -370,12 +370,12 @@ const Store = (function () {
   function updateExpense(id, { date, amount, category, merchant, note }) {
     const amt = validateAmount(amount);
     if (!amt.ok) return amt;
-    if (!date || !isValidCalendarDate(date)) return { ok: false, error: 'กรุณาเลือกวันที่ที่ถูกต้อง' };
-    if (date > todayISO()) return { ok: false, error: 'วันที่ต้องไม่เป็นวันในอนาคต' };
-    if (!category) return { ok: false, error: 'กรุณาเลือกหมวดหมู่' };
+    if (!date || !isValidCalendarDate(date)) return { ok: false, error: 'Please select a valid date.' };
+    if (date > todayISO()) return { ok: false, error: 'Date cannot be in the future.' };
+    if (!category) return { ok: false, error: 'Please select a category.' };
     const expenses = getExpenses();
     const idx = expenses.findIndex(e => e.id === id);
-    if (idx === -1) return { ok: false, error: 'ไม่พบรายการนี้' };
+    if (idx === -1) return { ok: false, error: 'Expense record not found.' };
     const merchantName = (merchant || '').trim();
     expenses[idx] = {
       ...expenses[idx],
@@ -547,22 +547,22 @@ const Store = (function () {
     try {
       data = JSON.parse(jsonString);
     } catch (e) {
-      return { ok: false, error: 'ไฟล์ไม่ใช่ JSON ที่ถูกต้อง' };
+      return { ok: false, error: 'File is not valid JSON.' };
     }
     if (!data || data.app !== 'expense-tracker-pwa') {
-      return { ok: false, error: 'ไฟล์แอปพลิเคชันไม่ถูกต้อง (ต้องเป็น backup จาก Expense Tracker)' };
+      return { ok: false, error: 'Invalid backup file (must be a valid backup from Expense Tracker).' };
     }
     if (!Array.isArray(data.categories) || !Array.isArray(data.expenses)) {
-      return { ok: false, error: 'โครงสร้างไฟล์ไม่ถูกต้อง (ต้องมี categories และ expenses)' };
+      return { ok: false, error: 'Invalid file structure (must contain categories and expenses).' };
     }
     if (data.expenses.length > 50000) {
-      return { ok: false, error: 'ไฟล์มีรายการมากเกินไป (สูงสุด 50,000 รายการ)' };
+      return { ok: false, error: 'File contains too many expenses (maximum 50,000 items).' };
     }
     if (data.categories.length > 500) {
-      return { ok: false, error: 'ไฟล์มีหมวดหมู่มากเกินไป (สูงสุด 500 หมวดหมู่)' };
+      return { ok: false, error: 'File contains too many categories (maximum 500 categories).' };
     }
     if (Array.isArray(data.merchants) && data.merchants.length > 500) {
-      return { ok: false, error: 'ไฟล์มีร้านค้ามากเกินไป (สูงสุด 500 ร้านค้า)' };
+      return { ok: false, error: 'File contains too many merchants (maximum 500 merchants).' };
     }
 
     const maxAllowedDate = tomorrowISO();
@@ -574,12 +574,12 @@ const Store = (function () {
       (e.note === undefined || e.note === null || (typeof e.note === 'string' && e.note.length <= 500))
     );
     if (!validExpenses) {
-      return { ok: false, error: 'พบข้อมูลรายการที่ไม่ถูกต้องในไฟล์ (เช่น วันที่ไม่อยู่ใน ปฏิทิน, วันในอนาคต, หรือ จำนวนเงินติดลบ)' };
+      return { ok: false, error: 'File contains invalid expense items (e.g. invalid date, future date, or negative amount).' };
     }
 
     const validCategories = data.categories.every(c => typeof c === 'string' && c.trim() !== '' && c.length <= 100);
     if (!validCategories) {
-      return { ok: false, error: 'พบชื่อหมวดหมู่ที่ไม่ถูกต้องในไฟล์' };
+      return { ok: false, error: 'File contains invalid category names.' };
     }
 
     const seenIds = new Set();
@@ -643,7 +643,7 @@ const Store = (function () {
   function setAccentColor(hex) {
     const cleanHex = (hex || '').trim();
     if (!/^#[0-9A-Fa-f]{6}$/.test(cleanHex)) {
-      return { ok: false, error: 'รหัสสีไม่ถูกต้อง (ต้องเป็น #RRGGBB)' };
+      return { ok: false, error: 'Invalid color code (must be in format #RRGGBB).' };
     }
     return writeJSON(STORAGE_KEYS.accentColor, cleanHex);
   }

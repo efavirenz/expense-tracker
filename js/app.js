@@ -39,7 +39,7 @@ function applyAccentColor(hex) {
 applyAccentColor();
 
 // ⚠️ Keep in sync with CACHE_NAME in service-worker.js
-const APP_VERSION = 'v9.7';
+const APP_VERSION = 'v9.8';
 
 const appEl = document.getElementById('app');
 const titleEl = document.getElementById('pageTitle');
