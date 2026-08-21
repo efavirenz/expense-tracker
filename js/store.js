@@ -65,7 +65,12 @@ const Store = (function () {
 
   if (typeof window !== 'undefined') {
     window.addEventListener('storage', (e) => {
-      if (e.key && cache[e.key] !== undefined) {
+      if (!e.key) {
+        Object.keys(cache).forEach(k => delete cache[k]);
+        if (typeof window.onStoreUpdated === 'function') window.onStoreUpdated();
+        return;
+      }
+      if (cache[e.key] !== undefined) {
         delete cache[e.key];
         if (typeof window.onStoreUpdated === 'function') window.onStoreUpdated();
       }
@@ -185,7 +190,7 @@ const Store = (function () {
     if (newName === oldName) {
       return { ok: false, error: 'New name must be different from current name.' };
     }
-    const oldCategories = getCategories();
+    const oldCategories = readJSON(STORAGE_KEYS.categories, DEFAULT_CATEGORIES.slice());
     const otherCategories = oldCategories.filter(c => c !== oldName);
     if (categoryExists(newName, otherCategories)) {
       return { ok: false, error: `Category "${newName}" already exists. Please choose a different name.` };
@@ -216,7 +221,7 @@ const Store = (function () {
 
   function deleteCategory(name) {
     if (name === RESERVED_CATEGORY) return { ok: false, error: 'Cannot delete reserved category.' };
-    const oldCategories = getCategories();
+    const oldCategories = readJSON(STORAGE_KEYS.categories, DEFAULT_CATEGORIES.slice());
     const categories = oldCategories.filter(c => c !== name);
     const res1 = writeJSON(STORAGE_KEYS.categories, categories);
     if (!res1.ok) return res1;
@@ -382,7 +387,9 @@ const Store = (function () {
     if (!amt.ok) return amt;
     if (!date || !isValidCalendarDate(date)) return { ok: false, error: 'Please select a valid date.' };
     if (date > todayISO()) return { ok: false, error: 'Date cannot be in the future.' };
-    if (!category) return { ok: false, error: 'Please select a category.' };
+    if (!category || category === RESERVED_CATEGORY) {
+      return { ok: false, error: 'Please select a category.' };
+    }
     const expenses = getExpenses();
     const idx = expenses.findIndex(e => e.id === id);
     if (idx === -1) return { ok: false, error: 'Expense record not found.' };
@@ -457,7 +464,8 @@ const Store = (function () {
         return (e.category || '').toLowerCase().includes(q)
             || (e.merchant || '').toLowerCase().includes(q)
             || (e.note || '').toLowerCase().includes(q)
-            || String(e.amount || 0).includes(q);
+            || String(e.amount || 0).includes(q)
+            || (e.amount || 0).toFixed(2).includes(q);
       })
       .sort(compareExpenseSort);
   }
@@ -501,7 +509,10 @@ const Store = (function () {
   // ---------- CSV export ----------
 
   function csvEscape(value) {
-    const s = String(value);
+    let s = String(value ?? '');
+    if (/^[=+\-@\t\r]/.test(s)) {
+      s = "'" + s;
+    }
     if (/[",\r\n]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
     return s;
   }
@@ -609,7 +620,19 @@ const Store = (function () {
       };
     });
 
-    const res1 = writeJSON(STORAGE_KEYS.categories, data.categories.map(c => c.trim()));
+    const seenCats = new Set();
+    const cleanCategories = [];
+    data.categories.forEach(c => {
+      const name = (typeof c === 'string' ? c : '').trim();
+      if (!name || name === RESERVED_CATEGORY) return;
+      const key = name.toLowerCase();
+      if (!seenCats.has(key)) {
+        seenCats.add(key);
+        cleanCategories.push(name);
+      }
+    });
+
+    const res1 = writeJSON(STORAGE_KEYS.categories, cleanCategories);
     if (!res1.ok) return res1;
     const res2 = writeJSON(STORAGE_KEYS.expenses, expenses);
     if (!res2.ok) return res2;

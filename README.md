@@ -73,6 +73,17 @@ Two things were added during planning review, both agreed on beforehand:
 
 ## Changelog
 
+**v10.0 — Comprehensive Technical Audit, Security Hardening & Zero-Dep Test Suite**
+- **Storage Purity & Virtual Category Isolation**: Fixed `renameCategory` and `deleteCategory` to read raw stored categories instead of `getCategories()`, preventing the dynamic `[Removed]` category from ever being saved into permanent `localStorage` categories.
+- **CSV Formula Injection (DDE) Protection**: Escaped formula trigger characters (`=`, `+`, `-`, `@`, `\t`, `\r`) with a leading single quote (`'`) in CSV export to protect spreadsheet applications (Excel, Google Sheets) from formula injection.
+- **Backup Restore Deduplication & Sanitization**: Added case-insensitive category deduplication and filtered `[Removed]` / empty strings during JSON backup import.
+- **Multi-Tab Sync on Clear**: Handled null-key storage events so `localStorage.clear()` in one tab correctly purges the in-memory cache and refreshes the UI across all open tabs.
+- **Decimal Search Matching**: Updated `searchExpenses()` to match formatted 2-decimal numbers (e.g. searching `100.00` matches an expense of `100`).
+- **Update Category Validation Guard**: Added validation to `updateExpense` to block re-saving expenses under the `[Removed]` reserved category.
+- **Mobile Viewport Accessibility**: Removed `maximum-scale=1` from viewport meta tag to enable pinch-to-zoom for low-vision users (WCAG 2.1 SC 1.4.4) while keeping `viewport-fit=cover`.
+- **Zero-Dependency Automated Test Suite**: Added standalone test suite (`test/test-store.js`) verifying all Store CRUD, calculation arithmetic, CSV escaping, backup import/export, and multi-tab storage sync.
+- Home screen version tag bumped to **v10.0**; service worker cache bumped to `v21`.
+
 **v9.9 — Dynamic [Removed] Category Visibility**
 - **Dynamic [Removed] Inclusion**: Updated `Store.getCategories()` to check if any existing expenses reference `[Removed]`. If so, `[Removed]` is appended dynamically to the category list, making it immediately visible in both `Rename Category` (allowing users to rename it) and `Delete Category` (rendered as a greyed-out disabled item). Once all orphaned expenses are renamed, `[Removed]` automatically disappears from the category list.
 - Home screen version tag bumped to **v9.9**; service worker cache bumped to `v20`.

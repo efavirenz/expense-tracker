@@ -39,7 +39,7 @@ function applyAccentColor(hex) {
 applyAccentColor();
 
 // ⚠️ Keep in sync with CACHE_NAME in service-worker.js
-const APP_VERSION = 'v9.9';
+const APP_VERSION = 'v10.0';
 
 const appEl = document.getElementById('app');
 const titleEl = document.getElementById('pageTitle');
@@ -1111,13 +1111,13 @@ const Screens = {
       html: `
         <div class="period-label">${formatDateDisplay(p.start)} &ndash; ${formatDateDisplay(p.end)}</div>
         <nav class="menu-list">
-          <button class="menu-item" data-action="exportCSVChoice" data-start="${p.start}" data-end="${p.end}" data-csvtype="summary" data-returnto="${p.returnTo || ''}">
+          <button class="menu-item" data-action="exportCSVChoice" data-start="${escapeHtml(p.start)}" data-end="${escapeHtml(p.end)}" data-csvtype="summary" data-returnto="${escapeHtml(p.returnTo || '')}">
             <span>Summary</span><span class="chev">&#8250;</span>
           </button>
-          <button class="menu-item" data-action="exportCSVChoice" data-start="${p.start}" data-end="${p.end}" data-csvtype="detailed" data-returnto="${p.returnTo || ''}">
+          <button class="menu-item" data-action="exportCSVChoice" data-start="${escapeHtml(p.start)}" data-end="${escapeHtml(p.end)}" data-csvtype="detailed" data-returnto="${escapeHtml(p.returnTo || '')}">
             <span>Detailed Expense List</span><span class="chev">&#8250;</span>
           </button>
-          <button class="menu-item" data-action="exportCSVChoice" data-start="${p.start}" data-end="${p.end}" data-csvtype="both" data-returnto="${p.returnTo || ''}">
+          <button class="menu-item" data-action="exportCSVChoice" data-start="${escapeHtml(p.start)}" data-end="${escapeHtml(p.end)}" data-csvtype="both" data-returnto="${escapeHtml(p.returnTo || '')}">
             <span>Both</span><span class="chev">&#8250;</span>
           </button>
         </nav>`
