@@ -115,7 +115,7 @@ node test/test-store.js
 - Keep interactive touch targets at least 48 × 48 CSS pixels where applicable.
 - Search month fields stack vertically on narrow screens and return to a row at
   the 480px breakpoint; preserve this responsive behavior.
-- Summary merchant names use 14px text; merchant amounts retain their own table
+- Summary merchant names use 15px text; merchant amounts retain their own table
   typography. Keep Category and Merchant rows compact without shrinking 48px links.
 
 ## Git Rules

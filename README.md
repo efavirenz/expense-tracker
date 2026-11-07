@@ -99,7 +99,7 @@ update the app version when publishing a user-facing release.
 
 - Interactive controls use a minimum 48 × 48 CSS-pixel touch target where applicable.
 - Search month filters stack vertically on narrow mobile screens and display side by side at viewport widths of 480px or more.
-- Summary Category and Merchant links retain 48px minimum height while table rows avoid extra vertical cell padding. Merchant names use 14px text; amount typography remains separate.
+- Summary Category and Merchant links retain 48px minimum height while table rows avoid extra vertical cell padding. Merchant names use 15px text; amount typography remains separate.
 - The app-shell CSP does not use `unsafe-inline`: `script-src 'self'`, `style-src 'self'`, and `style-src-attr 'none'`. Validate theme preview/save and main UI flows in browser DevTools after CSP changes.
 
 ## Changelog
