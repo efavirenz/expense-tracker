@@ -65,3 +65,5 @@ ehthumbs.db
 AGENTS.md
 
 node_modules/
+reports/
+.serena/
