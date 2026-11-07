@@ -38,8 +38,8 @@ function applyAccentColor(hex) {
 
 applyAccentColor();
 
-// ⚠️ Keep in sync with CACHE_NAME in service-worker.js
-const APP_VERSION = 'v10.0';
+// APP_VERSION is the user-facing release label; CACHE_NAME has an independent cache revision.
+const APP_VERSION = 'v11';
 
 const appEl = document.getElementById('app');
 const titleEl = document.getElementById('pageTitle');
@@ -67,16 +67,7 @@ function monthLabel(yyyyMm) {
 }
 
 let toastTimer = null;
-if (toastEl) {
-  toastEl.style.cursor = 'pointer';
-  toastEl.onclick = () => {
-    toastEl.classList.remove('toast--visible');
-    if (toastTimer) {
-      clearTimeout(toastTimer);
-      toastTimer = null;
-    }
-  };
-}
+if (toastEl) toastEl.setAttribute('aria-live', 'polite');
 function showToast(message, isError) {
   if (!toastEl) return;
   toastEl.textContent = message;
@@ -90,10 +81,11 @@ window.showToast = showToast;
 function showConfirm(message, opts) {
   opts = opts || {};
   return new Promise(resolve => {
+    const previousFocus = document.activeElement;
     modalRoot.innerHTML = `
       <div class="modal-backdrop" id="modalBackdrop">
-        <div class="modal-card" role="alertdialog" aria-modal="true">
-          <p class="modal-message">${escapeHtml(message)}</p>
+        <div class="modal-card" role="alertdialog" aria-modal="true" aria-labelledby="modalMessage">
+          <p class="modal-message" id="modalMessage">${escapeHtml(message)}</p>
           <div class="modal-actions">
             <button class="btn btn--ghost" id="modalNo" autofocus>${escapeHtml(opts.noLabel || 'Cancel')}</button>
             <button class="btn ${opts.danger ? 'btn--danger' : 'btn--primary'}" id="modalYes">${escapeHtml(opts.yesLabel || 'Yes')}</button>
@@ -127,6 +119,7 @@ function showConfirm(message, opts) {
     const cleanup = (val) => {
       window.removeEventListener('keydown', handleKeyDown);
       modalRoot.innerHTML = '';
+      if (previousFocus && previousFocus.isConnected && !previousFocus.disabled) previousFocus.focus();
       resolve(val);
     };
 
@@ -160,6 +153,7 @@ function downloadTextFile(filename, mime, content) {
 
 function showPrompt(title, placeholder) {
   return new Promise(resolve => {
+    const previousFocus = document.activeElement;
     // Build modal using DOM APIs for synchronous focus (required for iOS keyboard)
     const backdrop = document.createElement('div');
     backdrop.className = 'modal-backdrop';
@@ -169,25 +163,26 @@ function showPrompt(title, placeholder) {
     card.className = 'modal-card';
     card.setAttribute('role', 'dialog');
     card.setAttribute('aria-modal', 'true');
+    card.setAttribute('aria-labelledby', 'modalMessage');
 
     const msg = document.createElement('p');
-    msg.className = 'modal-message';
-    msg.style.cssText = 'font-weight:600;margin-bottom:12px;';
+    msg.className = 'modal-message modal-message--prompt';
+    msg.id = 'modalMessage';
     msg.textContent = title;
 
     const input = document.createElement('input');
     input.type = 'text';
+    input.className = 'modal-input';
+    input.setAttribute('aria-label', 'Enter value');
     input.id = 'modalInput';
     input.maxLength = 100;
     input.placeholder = placeholder || '';
-    input.style.marginBottom = '12px';
     input.autocomplete = 'off';
 
     const errorEl = document.createElement('div');
     errorEl.id = 'modalInputError';
-    errorEl.className = 'form-error';
+    errorEl.className = 'form-error modal-error';
     errorEl.hidden = true;
-    errorEl.style.marginBottom = '12px';
 
     const actions = document.createElement('div');
     actions.className = 'modal-actions';
@@ -252,6 +247,7 @@ function showPrompt(title, placeholder) {
     const cleanup = (val) => {
       window.removeEventListener('keydown', handleKeyDown);
       modalRoot.innerHTML = '';
+      if (previousFocus && previousFocus.isConnected && !previousFocus.disabled) previousFocus.focus();
       resolve(val);
     };
 
@@ -262,6 +258,7 @@ function showPrompt(title, placeholder) {
       if (e.target.id === 'modalBackdrop') cleanup(null);
     });
     setTimeout(() => {
+      if (!input.isConnected) return;
       input.focus();
       input.select();
     }, 50);
@@ -306,7 +303,7 @@ function renderSummaryTable(rows, total, showMerchants = true, periodStart = '',
   }
   const body = rows.map(r => {
     const catContent = (periodStart && periodEnd)
-      ? `<span class="summary-table__link" data-action="nav" data-view="filteredExpenses" data-start="${periodStart}" data-end="${periodEnd}" data-category="${escapeHtml(r.category)}">${escapeHtml(r.category)}</span>`
+      ? `<button type="button" class="summary-table__link" data-action="nav" data-view="filteredExpenses" data-start="${periodStart}" data-end="${periodEnd}" data-category="${escapeHtml(r.category)}">${escapeHtml(r.category)}</button>`
       : escapeHtml(r.category);
 
     const catRow = `
@@ -317,7 +314,7 @@ function renderSummaryTable(rows, total, showMerchants = true, periodStart = '',
 
     const merchantRows = r.merchants.map(m => {
       const merchantContent = (periodStart && periodEnd)
-        ? `<span class="summary-table__link" data-action="nav" data-view="filteredExpenses" data-start="${periodStart}" data-end="${periodEnd}" data-category="${escapeHtml(r.category)}" data-merchant="${escapeHtml(m.merchant)}">&nbsp;&nbsp;&nbsp;${escapeHtml(m.merchant)}</span>`
+        ? `<button type="button" class="summary-table__link" data-action="nav" data-view="filteredExpenses" data-start="${periodStart}" data-end="${periodEnd}" data-category="${escapeHtml(r.category)}" data-merchant="${escapeHtml(m.merchant)}">&nbsp;&nbsp;&nbsp;${escapeHtml(m.merchant)}</button>`
         : `&nbsp;&nbsp;&nbsp;${escapeHtml(m.merchant)}`;
 
       return `
@@ -340,21 +337,86 @@ function renderSummaryTable(rows, total, showMerchants = true, periodStart = '',
 
 /* ---------------- router ---------------- */
 
+const HISTORY_STATE_KEY = 'expenseTrackerRouter';
 const state = { stack: [{ view: 'home' }] };
 function topScreen() { return state.stack[state.stack.length - 1]; }
-function navigate(view, params) { state.stack.push(Object.assign({ view }, params)); render(); }
-function goBack() { if (state.stack.length > 1) { state.stack.pop(); render(); } }
-function goHome() { state.stack = [{ view: 'home' }]; render(); }
-function replaceTop(view, params) { state.stack[state.stack.length - 1] = Object.assign({ view }, params); render(); }
+function syncBrowserHistory(replace) {
+  if (!window.history || typeof window.history.pushState !== 'function') return;
+  try {
+    const payload = { [HISTORY_STATE_KEY]: true, stack: state.stack.map(screen => ({ ...screen })) };
+    if (replace) window.history.replaceState(payload, '', window.location.href);
+    else window.history.pushState(payload, '', window.location.href);
+  } catch (error) {
+    console.warn('Browser history synchronization unavailable:', error);
+  }
+}
+
+if (window.history && typeof window.history.replaceState === 'function') {
+  const existing = window.history.state;
+  if (existing && existing[HISTORY_STATE_KEY] === true && Array.isArray(existing.stack) && existing.stack.length) {
+    state.stack = existing.stack.filter(screen => screen && typeof screen.view === 'string');
+    if (!state.stack.length) state.stack = [{ view: 'home' }];
+  } else {
+    syncBrowserHistory(true);
+  }
+  window.addEventListener('popstate', event => {
+    const next = event.state;
+    if (next && next[HISTORY_STATE_KEY] === true && Array.isArray(next.stack)) {
+      state.stack = next.stack.filter(screen => screen && typeof screen.view === 'string');
+      if (!state.stack.length) state.stack = [{ view: 'home' }];
+    } else {
+      state.stack = [{ view: 'home' }];
+    }
+    render();
+  });
+}
+
+function navigate(view, params) {
+  state.stack.push(Object.assign({ view }, params));
+  syncBrowserHistory(false);
+  render();
+}
+function goBack() {
+  if (state.stack.length <= 1) return;
+  const historyState = window.history && window.history.state;
+  const historyIsSynchronized = historyState && historyState[HISTORY_STATE_KEY] === true &&
+    JSON.stringify(historyState.stack) === JSON.stringify(state.stack);
+  if (historyIsSynchronized) {
+    window.history.back();
+    return;
+  }
+  state.stack.pop();
+  syncBrowserHistory(true);
+  render();
+}
+function goHome() {
+  state.stack = [{ view: 'home' }];
+  syncBrowserHistory(false);
+  render();
+}
+function replaceTop(view, params) {
+  state.stack[state.stack.length - 1] = Object.assign({ view }, params);
+  syncBrowserHistory(true);
+  render();
+}
 
 function popToView(view) {
-  const foundIdx = state.stack.map(s => s.view).lastIndexOf(view);
-  if (foundIdx !== -1) {
-    state.stack = state.stack.slice(0, foundIdx + 1);
-  } else {
+  const foundIdx = state.stack.map(screen => screen.view).lastIndexOf(view);
+  if (foundIdx === -1) {
     navigate(view);
     return;
   }
+  const targetStack = state.stack.slice(0, foundIdx + 1);
+  const historyState = window.history && window.history.state;
+  const historyIsSynchronized = historyState && historyState[HISTORY_STATE_KEY] === true &&
+    JSON.stringify(historyState.stack) === JSON.stringify(state.stack);
+  const stepsBack = state.stack.length - targetStack.length;
+  if (historyIsSynchronized && stepsBack > 0) {
+    window.history.go(-stepsBack);
+    return;
+  }
+  state.stack = targetStack;
+  syncBrowserHistory(true);
   render();
 }
 
@@ -372,19 +434,19 @@ const Screens = {
       back: false,
       html: `
         <div class="home-version-bar">
-          <span class="home-version" data-action="forceUpdate" role="button" tabindex="0" title="Tap to force update">${APP_VERSION}</span>
+          <button type="button" class="home-version" data-action="forceUpdate" title="Tap to force update" aria-label="Force app update, version ${APP_VERSION}">${APP_VERSION}</button>
         </div>
-        <div class="month-glance" data-action="nav" data-view="expensesList" data-month="${month}">
-          <div class="month-glance__row">
+        <button type="button" class="month-glance" data-action="nav" data-view="expensesList" data-month="${month}" aria-label="View expenses for ${monthLabel(month)}">
+          <span class="month-glance__row">
             <span class="month-glance__label">This month - ${monthLabel(month)}</span>
             <span class="month-glance__value">${formatTHB(monthTotal)}</span>
-          </div>
-          <div class="month-glance__divider"></div>
-          <div class="month-glance__row">
+          </span>
+          <span class="month-glance__divider"></span>
+          <span class="month-glance__row">
             <span class="month-glance__label">Today</span>
             <span class="month-glance__value">${formatTHB(todayTotal)}</span>
-          </div>
-        </div>
+          </span>
+        </button>
         <nav class="menu-list">
           <button class="menu-item" data-action="nav" data-view="addExpense">
             <span>Add Expense</span><span class="chev">&#8250;</span>
@@ -463,7 +525,7 @@ const Screens = {
           const note = document.getElementById('expNote').value;
           const res = Store.addExpense({ date, amount, category, merchant, note });
           if (!res.ok) { showFormError(res.error); return; }
-          showToast('Expense saved.');
+          showToast(res.warning || 'Expense saved.', !!res.warning);
           goHome();
         });
       }
@@ -589,7 +651,7 @@ const Screens = {
       html: cats.length ? `
         <nav class="menu-list">
           ${cats.map(c => c === Store.RESERVED_CATEGORY ? `
-            <div class="menu-item menu-item--disabled" style="color:var(--text-muted); opacity:0.6; cursor:not-allowed;">
+            <div class="menu-item menu-item--disabled" aria-disabled="true">
               <span>${escapeHtml(c)}</span>
             </div>` : `
             <button class="menu-item menu-item--danger" data-action="deleteCategory" data-name="${escapeHtml(c)}">
@@ -708,14 +770,14 @@ const Screens = {
         ${items.length === 0 ? `<div class="empty-state">No expenses in ${monthLabel(month)}.</div>` : `
         <ul class="expense-list">
           ${items.map(e => `
-            <li class="expense-row ${e.date === today ? 'expense-row--today' : ''}" data-action="nav" data-view="expenseEdit" data-id="${e.id}">
-              <div class="expense-row__main">
+            <li><button type="button" class="expense-row ${e.date === today ? 'expense-row--today' : ''}" data-action="nav" data-view="expenseEdit" data-id="${e.id}">
+              <span class="expense-row__main">
                 <span class="expense-row__cat">${escapeHtml(e.category)}${e.merchant ? ` <span class="expense-row__merchant">&middot; ${escapeHtml(e.merchant)}</span>` : ''}</span>
                 <span class="expense-row__date">${formatDateDisplay(e.date)}</span>
                 ${e.note ? `<span class="expense-row__note">${escapeHtml(e.note)}</span>` : ''}
-              </div>
+              </span>
               <span class="expense-row__amt">${formatTHB(e.amount)}</span>
-            </li>`).join('')}
+            </button></li>`).join('')}
         </ul>`}`,
       afterRender() {
         document.getElementById('monthPicker').addEventListener('change', (e) => {
@@ -801,14 +863,14 @@ const Screens = {
             <div class="search-results-info">Found ${results.length} item${results.length === 1 ? '' : 's'}</div>
             <ul class="expense-list">
               ${results.map(e => `
-                <li class="expense-row" data-action="nav" data-view="expenseEdit" data-id="${e.id}">
-                  <div class="expense-row__main">
+                <li><button type="button" class="expense-row" data-action="nav" data-view="expenseEdit" data-id="${e.id}">
+                  <span class="expense-row__main">
                     <span class="expense-row__cat">${escapeHtml(e.category)}${e.merchant ? ` <span class="expense-row__merchant">&middot; ${escapeHtml(e.merchant)}</span>` : ''}</span>
                     <span class="expense-row__date">${formatDateDisplay(e.date)}</span>
                     ${e.note ? `<span class="expense-row__note">${escapeHtml(e.note)}</span>` : ''}
-                  </div>
+                  </span>
                   <span class="expense-row__amt">${formatTHB(e.amount)}</span>
-                </li>`).join('')}
+                </button></li>`).join('')}
             </ul>`;
         }
 
@@ -875,7 +937,7 @@ const Screens = {
           const note = document.getElementById('editNote').value;
           const res = Store.updateExpense(record.id, { date, amount, category, merchant, note });
           if (!res.ok) { showFormError(res.error); return; }
-          showToast('Expense updated.');
+          showToast(res.warning || 'Expense updated.', !!res.warning);
           goBack();
         });
         document.getElementById('cancelExpBtn').addEventListener('click', () => {
@@ -993,7 +1055,12 @@ const Screens = {
         if (toggle) {
           toggle.addEventListener('change', (e) => {
             const show = e.target.checked;
-            Store.setShowMerchants(show);
+            const result = Store.setShowMerchants(show);
+            if (!result.ok) {
+              e.target.checked = !show;
+              showToast(result.error, true);
+              return;
+            }
             const table = document.querySelector('.summary-table');
             if (table) {
               table.classList.toggle('hide-merchants', !show);
@@ -1029,14 +1096,14 @@ const Screens = {
         </div>
         <ul class="expense-list">
           ${items.map(e => `
-            <li class="expense-row ${e.date === today ? 'expense-row--today' : ''}" data-action="nav" data-view="expenseEdit" data-id="${e.id}">
-              <div class="expense-row__main">
+            <li><button type="button" class="expense-row ${e.date === today ? 'expense-row--today' : ''}" data-action="nav" data-view="expenseEdit" data-id="${e.id}">
+              <span class="expense-row__main">
                 <span class="expense-row__cat">${escapeHtml(e.category)}${e.merchant ? ` <span class="expense-row__merchant">&middot; ${escapeHtml(e.merchant)}</span>` : ''}</span>
                 <span class="expense-row__date">${formatDateDisplay(e.date)}</span>
                 ${e.note ? `<span class="expense-row__note">${escapeHtml(e.note)}</span>` : ''}
-              </div>
+              </span>
               <span class="expense-row__amt">${formatTHB(e.amount)}</span>
-            </li>`).join('')}
+            </button></li>`).join('')}
         </ul>`}`
     };
   },
@@ -1185,6 +1252,37 @@ function exportCSVForRange(start, end, csvType) {
 async function handleAction(actionEl) {
   const action = actionEl.dataset.action;
 
+  if (action === 'recoveryExport') {
+    const result = Store.exportRecoveryData();
+    if (!result.ok) { showToast(result.error, true); return; }
+    downloadTextFile(`expense_tracker_recovery_${Store.todayISO()}.json`, 'application/json', result.content);
+    showToast('Raw recovery data exported. Keep this file safe.');
+    return;
+  }
+  if (action === 'recoveryReload') {
+    window.location.reload();
+    return;
+  }
+  if (action === 'recoveryRestoreOriginal') {
+    const confirmed = await showConfirm('Restore the original storage snapshot captured before the failed operation? This will replace the partial transaction values.', { yesLabel: 'Restore snapshot' });
+    if (!confirmed) return;
+    const result = Store.restoreRecoverySnapshot();
+    if (!result.ok) { showToast(result.error, true); render(); return; }
+    showToast('Original storage snapshot restored.');
+    goHome();
+    return;
+  }
+  if (action === 'recoveryReset') {
+    const confirmed = await showConfirm('Reset the invalid storage entries to defaults? Export the raw recovery data first. Valid entries will be kept.', { danger: true, yesLabel: 'Reset invalid entries' });
+    if (!confirmed) return;
+    const result = Store.resetRecoveryData();
+    if (!result.ok) { showToast(result.error, true); return; }
+    if (searchBtn) searchBtn.hidden = false;
+    showToast('Invalid entries reset.');
+    goHome();
+    return;
+  }
+
   if (action === 'nav') {
     const targetView = actionEl.dataset.view;
     if (!Screens[targetView]) {
@@ -1201,14 +1299,12 @@ async function handleAction(actionEl) {
     actionEl.textContent = 'Updating...';
     try {
       if ('serviceWorker' in navigator) {
-        const registrations = await navigator.serviceWorker.getRegistrations();
-        for (const reg of registrations) {
-          await reg.unregister();
-        }
+        const registration = await navigator.serviceWorker.getRegistration();
+        if (registration) await registration.unregister();
       }
       if ('caches' in window) {
         const keys = await caches.keys();
-        await Promise.all(keys.map((k) => caches.delete(k)));
+        await Promise.all(keys.filter(key => key.startsWith('expense-tracker-')).map(key => caches.delete(key)));
       }
     } catch (err) {
       console.error('Force update failed:', err);
@@ -1321,6 +1417,42 @@ if (homeBtn) {
 /* ---------------- render loop ---------------- */
 
 function render() {
+  if (Store.getRecoveryState()) {
+    const recovery = Store.getRecoveryState();
+    titleEl.textContent = 'Data Recovery Required';
+    document.title = 'Data Recovery Required - Expense Tracker';
+    backBtn.hidden = true;
+    if (searchBtn) searchBtn.hidden = true;
+    if (homeBtn) homeBtn.hidden = true;
+    appEl.innerHTML = `
+      <section class="recovery-screen" aria-labelledby="recoveryTitle">
+        <h2 id="recoveryTitle">Your stored data needs attention</h2>
+        <p>${escapeHtml(recovery.message)}</p>
+        <p class="section-hint">The app has stopped normal operations to avoid overwriting or changing stored data. Export the raw recovery values before taking a recovery action.</p>
+        <div class="form-actions">
+          <button type="button" class="btn btn--primary" data-action="recoveryExport">Export raw recovery data</button>
+        </div>
+        ${recovery.code === 'STORAGE_ACCESS' ? '<p class="section-hint">Browser storage access is currently blocked. Allow site storage in your browser settings, then reload the app before retrying recovery.</p>' : ''}
+        ${recovery.code === 'MIGRATION_FAILED' ? `
+          <div class="form-actions">
+            <button type="button" class="btn btn--primary" data-action="recoveryReload">Reload and retry migration</button>
+          </div>
+          <p class="section-hint">No stored values were changed by the failed migration. The app is paused until migration can be saved safely.</p>` : ''}
+        ${recovery.code === 'ROLLBACK_FAILED' && recovery.originalRawValues ? `
+          <div class="form-actions">
+            <button type="button" class="btn btn--primary" data-action="recoveryRestoreOriginal">Restore original storage snapshot</button>
+          </div>
+          <p class="section-hint">A previous multi-key operation could not fully roll back. Restore the captured original values; do not reset these keys to defaults.</p>` : ''}
+        ${recovery.code !== 'STORAGE_ACCESS' && recovery.code !== 'ROLLBACK_FAILED' && recovery.code !== 'MIGRATION_FAILED' && recovery.keys.length > 0 ? `
+          <div class="form-actions">
+            <button type="button" class="btn btn--danger" data-action="recoveryReset">Reset invalid entries to defaults</button>
+          </div>
+          <p class="section-hint">Only entries identified as invalid will be reset. Valid stored entries are retained.</p>` : ''}
+      </section>`;
+    appEl.scrollTop = 0;
+    return;
+  }
+  if (searchBtn) searchBtn.hidden = false;
   const screenState = topScreen();
   if (!screenState || !Screens[screenState.view] || typeof Screens[screenState.view] !== 'function') {
     console.error('Unknown screen view:', screenState ? screenState.view : screenState);
@@ -1331,6 +1463,7 @@ function render() {
     applyAccentColor();
   }
   const screen = Screens[screenState.view](screenState);
+  if (Store.getRecoveryState()) return render();
   titleEl.textContent = screen.title;
   document.title = screen.title ? `${screen.title} - Expense Tracker` : 'Expense Tracker';
   backBtn.hidden = !screen.back;

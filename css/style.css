@@ -35,6 +35,8 @@ button, input, select {
   font-size: 16px;
 }
 
+button, input, select { min-height: 48px; }
+
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
@@ -58,7 +60,9 @@ button, input, select {
   font-size: 22px;
   line-height: 1;
   color: var(--accent);
-  padding: 4px 6px 4px 0;
+  min-width: 48px;
+  min-height: 48px;
+  padding: 0;
   cursor: pointer;
 }
 
@@ -76,7 +80,9 @@ button, input, select {
   background: none;
   font-size: 20px;
   line-height: 1;
-  padding: 4px 0 4px 6px;
+  min-width: 48px;
+  min-height: 48px;
+  padding: 0;
   cursor: pointer;
 }
 
@@ -125,7 +131,11 @@ button, input, select {
   font-weight: 600;
   color: var(--text-muted);
   letter-spacing: 0.02em;
+  min-width: 48px;
+  min-height: 48px;
   padding: 3px 8px;
+  border: 0;
+  background: transparent;
   border-radius: 6px;
   cursor: pointer;
   user-select: none;
@@ -144,6 +154,10 @@ button, input, select {
 }
 
 .month-glance {
+  width: 100%;
+  border: 0;
+  text-align: left;
+  font-family: inherit;
   background: var(--accent);
   color: #FFFFFF;
   border-radius: var(--radius);
@@ -162,6 +176,7 @@ button, input, select {
   gap: 2px;
 }
 .month-glance__divider {
+  display: block;
   height: 1px;
   background: rgba(255, 255, 255, 0.25);
   margin: 0 -4px;
@@ -211,7 +226,7 @@ button, input, select {
 }
 .color-picker-row input[type="color"] {
   width: 50px;
-  height: 44px;
+  height: 48px;
   padding: 2px;
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -261,6 +276,7 @@ button, input, select {
 }
 .menu-item:active { background: var(--accent-soft); }
 .menu-item--danger { color: var(--danger); }
+.menu-item--disabled { color: var(--text-muted); opacity: 0.6; cursor: not-allowed; }
 .menu-item .chev { color: var(--text-muted); font-size: 18px; }
 
 /* ---- forms ---- */
@@ -277,8 +293,8 @@ button, input, select {
 .field__row select { flex: 1; }
 .merchant-add-btn {
   flex-shrink: 0;
-  width: 46px;
-  height: 46px;
+  width: 48px;
+  height: 48px;
   padding: 0;
   font-size: 20px;
   font-weight: 600;
@@ -309,7 +325,7 @@ input[type="text"], input[type="number"], input[type="date"], input[type="month"
 input[type="date"], input[type="month"] {
   -webkit-appearance: none;
   appearance: none;
-  min-height: 46px;
+  min-height: 48px;
 }
 input[type="number"] { font-family: var(--font-num); }
 textarea {
@@ -335,6 +351,7 @@ textarea {
 .form-actions .btn { flex: 1; }
 
 .btn {
+  min-height: 48px;
   padding: 13px 18px;
   border-radius: 10px;
   border: 1px solid transparent;
@@ -349,6 +366,7 @@ textarea {
 
 .file-btn {
   display: inline-flex;
+  align-items: center;
   justify-content: center;
   width: 100%;
 }
@@ -375,6 +393,16 @@ textarea {
   border: 1px solid var(--border);
   border-radius: 12px;
   cursor: pointer;
+}
+button.expense-row {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  min-height: 48px;
+  font-family: inherit;
+  font-size: 16px;
+  color: var(--text);
+  text-align: left;
 }
 .expense-row:active { background: var(--accent-soft); }
 .expense-row--today {
@@ -417,6 +445,8 @@ textarea {
 .summary-toolbar .period-label { margin-bottom: 0; }
 
 .toggle-control {
+  min-height: 48px;
+  padding: 4px 0;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -501,6 +531,17 @@ textarea {
 .summary-table__merchant-name { padding-left: 16px; white-space: pre-wrap; }
 .summary-table__merchant-name--empty { font-style: italic; }
 .summary-table__link {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  min-width: 48px;
+  min-height: 48px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: left;
   cursor: pointer;
   color: var(--text);
   text-decoration: underline;
@@ -577,6 +618,11 @@ textarea {
   max-width: 420px;
 }
 .modal-message { margin: 0 0 18px; font-size: 15px; line-height: 1.5; }
+.modal-message--prompt { font-weight: 600; margin-bottom: 12px; }
+.modal-input, .modal-error { margin-bottom: 12px; }
+.recovery-screen { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
+.recovery-screen h2 { margin-top: 0; font-size: 19px; }
+.recovery-screen .form-actions { margin-bottom: 12px; }
 .modal-actions { display: flex; gap: 10px; }
 .modal-actions .btn { flex: 1; }
 

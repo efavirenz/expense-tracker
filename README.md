@@ -48,12 +48,28 @@ Category / Merchant*) and an optional **merchant** (e.g. `Shopee`, `Lazada`,
   if the app goes unused for a very long time. Treat local storage as
   convenient, not indestructible.
 - Use **Backup & Restore → Export All Data (JSON)** regularly (e.g. monthly).
-  This is a full raw copy of every category, merchant, and expense — the only
-  way to recover your data if it's ever cleared, or to move it to a new
-  phone. Backup files are versioned (`version: 2` now includes the
-  `merchants` list and each expense's `merchant` field); older `version: 1`
-  backups without a `merchant` field still restore fine — merchant just comes
-  back blank on those old entries.
+  This is a complete application-data export of every category, merchant, and
+  expense (not a byte-for-byte snapshot of browser storage) — the way to recover
+  your data if it is cleared, or to move it to a new
+  phone. Backup files are versioned. Current exports use **version 3**, which
+  includes the merchant list, per-expense merchant values, accent color, and an
+  explicit policy marker plus the IDs of existing virtual `[Removed]` expenses.
+  Version 1 and 2 backups remain supported. Older orphaned categories are preserved during
+  migration rather than silently discarded.
+- New backups keep `[Removed]` out of the active category list. It is a
+  virtual fallback used only for expenses whose original category was deleted.
+  The app preserves existing `[Removed]` expenses when exporting and restoring
+  its own v3 backup using the `removedExpenseIds` list, but does not allow new
+  or unlisted expenses to be assigned to it.
+- Expense amounts must be positive THB values with at most **two decimal
+  places**. Inputs such as `12abc`, `1e2`, `0.004` and `10.999` are rejected;
+  the app does not silently round extra decimal places.
+- If the app detects malformed or inaccessible stored data, it opens a
+  **Data Recovery Required** screen instead of starting with empty defaults.
+  Export the raw recovery JSON and keep it safe before choosing to reset the
+  invalid entries. The reset targets only entries identified as invalid; valid
+  stored entries are retained. If browser storage itself is blocked, restore
+  access to storage before retrying the export or reset.
 - **Save to CSV** under Summary is for *reporting* (category totals, or an
   itemized list with Date / Category / Merchant / Amount / Note, for a
   period) — it is not a full backup and cannot be re-imported.
@@ -71,7 +87,27 @@ Two things were added during planning review, both agreed on beforehand:
 - **Backup & Restore** — full JSON export/import, separate from the CSV
   summary export, specifically to protect against local data loss.
 
+## Release and cache versions
+
+The home-screen label is the user-facing application release (`v11`). The
+Service Worker cache name (`expense-tracker-v22`) is an independent cache
+revision, not a second spelling of the application version. Increment the cache
+revision whenever an app-shell asset or Service Worker caching behavior changes;
+update the app version when publishing a user-facing release.
+
 ## Changelog
+
+**v11 — Data Integrity, Recovery, PWA Reliability & Accessibility**
+- **Validated local data and controlled recovery**: Added per-key schema checks for categories, merchants, preferences and expense records. Invalid JSON or unsupported shapes no longer silently fall back to defaults; the app presents a recovery screen, exports raw values and requires an explicit reset of invalid entries.
+- **Atomic backup restore**: Restore stages and validates all values, snapshots original raw storage values and rolls back partial writes, including accent color. Incomplete rollback is reported as a distinct recovery state.
+- **Backward-compatible backup migration**: New exports use backup schema v3 with a virtual-orphan policy marker and `removedExpenseIds` list. Version 1 and 2 backups remain accepted; legacy orphan categories and `[Removed]` expenses are preserved without persisting `[Removed]` in the active category list.
+- **Strict THB precision**: Expense entry, update and backup import require finite positive values with no more than two decimal places; invalid inputs are rejected rather than silently rounded.
+- **Storage error handling and multi-tab updates**: Centralized guarded localStorage access, differentiated quota/access/serialization errors, only update memory cache after successful writes, and refresh on all app-owned storage events even before a key has been cached.
+- **Safer CSV export**: Formula-prefix detection now handles leading whitespace/control characters in addition to direct formula prefixes.
+- **PWA cache reliability**: Service Worker uses exact URL matching, tracks revalidation and cache writes with the fetch event lifetime, and deletes only Expense Tracker caches. Force Update is scoped to this app's registration/cache namespace.
+- **Navigation and accessibility**: Added Browser Back/Forward synchronization, native buttons for actionable rows and summary links, modal accessible names/focus restoration, 48px minimum touch targets and English document language metadata.
+- **Release convention**: User-facing app version is **v11**; Service Worker cache revision is independently **v22** and is incremented when cached assets or SW behavior changes.
+- **Automated validation**: Expanded the zero-dependency Store suite to 97 assertions covering amount validation, legacy/v3 backup behavior, restore and migration fault injection, storage recovery, CSV formula protection, cross-tab changes and preference-write failures. Browser/iOS device testing remains a separate manual validation requirement.
 
 **v10.0 — Comprehensive Technical Audit, Security Hardening & Zero-Dep Test Suite**
 - **Storage Purity & Virtual Category Isolation**: Fixed `renameCategory` and `deleteCategory` to read raw stored categories instead of `getCategories()`, preventing the dynamic `[Removed]` category from ever being saved into permanent `localStorage` categories.
@@ -81,7 +117,7 @@ Two things were added during planning review, both agreed on beforehand:
 - **Decimal Search Matching**: Updated `searchExpenses()` to match formatted 2-decimal numbers (e.g. searching `100.00` matches an expense of `100`).
 - **Update Category Validation Guard**: Added validation to `updateExpense` to block re-saving expenses under the `[Removed]` reserved category.
 - **Mobile Viewport Accessibility**: Removed `maximum-scale=1` from viewport meta tag to enable pinch-to-zoom for low-vision users (WCAG 2.1 SC 1.4.4) while keeping `viewport-fit=cover`.
-- **Zero-Dependency Automated Test Suite**: Added standalone test suite (`test/test-store.js`) verifying all Store CRUD, calculation arithmetic, CSV escaping, backup import/export, and multi-tab storage sync.
+- **Zero-Dependency Automated Test Suite**: Added a standalone Node.js test harness for Store smoke tests. The suite's coverage was expanded and documented more precisely in v11.
 - Home screen version tag bumped to **v10.0**; service worker cache bumped to `v21`.
 
 **v9.9 — Dynamic [Removed] Category Visibility**
