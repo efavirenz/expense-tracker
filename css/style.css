@@ -99,11 +99,19 @@ button, input, select { min-height: 48px; }
 
 .search-range {
   display: flex;
+  flex-direction: column;
   gap: 10px;
 }
 
 .search-range .field {
-  flex: 1;
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+@media (min-width: 480px) {
+  .search-range {
+    flex-direction: row;
+  }
 }
 
 .search-results-info {
@@ -541,12 +549,22 @@ button.expense-row {
   border: 0;
   background: transparent;
   font: inherit;
+  line-height: 1.2;
   text-align: left;
   cursor: pointer;
   color: var(--text);
   text-decoration: underline;
   text-decoration-color: transparent;
   transition: text-decoration-color 0.15s ease, color 0.15s ease;
+}
+.summary-table__cat-row td,
+.summary-table__merchant-row td {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+.summary-table__cat-row .summary-table__link,
+.summary-table__merchant-row .summary-table__link {
+  min-height: 48px;
 }
 .summary-table__link:hover,
 .summary-table__link:active {
