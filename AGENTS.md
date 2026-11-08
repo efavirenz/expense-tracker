@@ -95,7 +95,7 @@ node test/test-store.js
 
 ## Release and PWA Conventions
 
-- The user-facing release label is `APP_VERSION` in `js/app.js` (currently `v11`).
+- The user-facing release label is `APP_VERSION` in `js/app.js` (currently `v11.1`).
 - The Service Worker cache revision is independent (`expense-tracker-v22`).
   Increment it whenever an app-shell asset or Service Worker caching behavior changes.
 - Cache cleanup and Force Update must remain scoped to the `expense-tracker-` cache

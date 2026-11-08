@@ -39,7 +39,7 @@ function applyAccentColor(hex) {
 applyAccentColor();
 
 // APP_VERSION is the user-facing release label; CACHE_NAME has an independent cache revision.
-const APP_VERSION = 'v11';
+const APP_VERSION = 'v11.1';
 
 const appEl = document.getElementById('app');
 const titleEl = document.getElementById('pageTitle');

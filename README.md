@@ -89,7 +89,7 @@ Two things were added during planning review, both agreed on beforehand:
 
 ## Release and cache versions
 
-The home-screen label is the user-facing application release (`v11`). The
+The home-screen label is the user-facing application release (`v11.1`). The
 Service Worker cache name (`expense-tracker-v22`) is an independent cache
 revision, not a second spelling of the application version. Increment the cache
 revision whenever an app-shell asset or Service Worker caching behavior changes;
@@ -104,6 +104,10 @@ update the app version when publishing a user-facing release.
 
 ## Changelog
 
+**v11.1 — Home Version Badge Spacing**
+- Reduced the Home screen version badge vertical footprint and removed its bottom margin for a tighter layout. The badge remains right-aligned and retains its Force Update action.
+- Updated the user-facing app release label to `v11.1`; the Service Worker cache revision remains independently `v22`.
+
 **v11 — Data Integrity, Recovery, PWA Reliability & Accessibility**
 - **Validated local data and controlled recovery**: Added per-key schema checks for categories, merchants, preferences and expense records. Invalid JSON or unsupported shapes no longer silently fall back to defaults; the app presents a recovery screen, exports raw values and requires an explicit reset of invalid entries.
 - **Atomic backup restore**: Restore stages and validates all values, snapshots original raw storage values and rolls back partial writes, including accent color. Incomplete rollback is reported as a distinct recovery state.
@@ -113,7 +117,7 @@ update the app version when publishing a user-facing release.
 - **Safer CSV export**: Formula-prefix detection now handles leading whitespace/control characters in addition to direct formula prefixes.
 - **PWA cache reliability**: Service Worker uses exact URL matching, tracks revalidation and cache writes with the fetch event lifetime, and deletes only Expense Tracker caches. Force Update is scoped to this app's registration/cache namespace.
 - **Navigation and accessibility**: Added Browser Back/Forward synchronization, native buttons for actionable rows and summary links, modal accessible names/focus restoration, 48px minimum touch targets and English document language metadata.
-- **Release convention**: User-facing app version is **v11**; Service Worker cache revision is independently **v22** and is incremented when cached assets or SW behavior changes.
+- **Release convention**: User-facing app version is **v11.1**; Service Worker cache revision is independently **v22** and is incremented when cached assets or SW behavior changes.
 - **Automated validation**: Expanded the zero-dependency Store suite to 97 assertions covering amount validation, legacy/v3 backup behavior, restore and migration fault injection, storage recovery, CSV formula protection, cross-tab changes and preference-write failures. Browser/iOS device testing remains a separate manual validation requirement.
 
 **v10.0 — Comprehensive Technical Audit, Security Hardening & Zero-Dep Test Suite**
