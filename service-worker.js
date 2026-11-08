@@ -1,6 +1,6 @@
 // App release and cache revision are independent; increment the cache revision when app-shell assets or SW behavior change.
 const CACHE_PREFIX = 'expense-tracker-';
-const CACHE_NAME = 'expense-tracker-v23';
+const CACHE_NAME = 'expense-tracker-v24';
 const APP_SHELL = [
   './',
   './index.html',
