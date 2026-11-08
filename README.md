@@ -89,8 +89,8 @@ Two things were added during planning review, both agreed on beforehand:
 
 ## Release and cache versions
 
-The home-screen label is the user-facing application release (`v11.3`). The
-Service Worker cache name (`expense-tracker-v24`) is an independent cache
+The home-screen label is the user-facing application release (`v11.4`). The
+Service Worker cache name (`expense-tracker-v25`) is an independent cache
 revision, not a second spelling of the application version. Increment the cache
 revision whenever an app-shell asset or Service Worker caching behavior changes;
 update the app version when publishing a user-facing release.
@@ -99,10 +99,20 @@ update the app version when publishing a user-facing release.
 
 - Interactive controls use a minimum 48 × 48 CSS-pixel touch target where applicable.
 - Search month filters stack vertically on narrow mobile screens and display side by side at viewport widths of 480px or more.
-- Summary Category and Merchant links retain 48px minimum height while table rows avoid extra vertical cell padding. Merchant names use 15px text; supporting Merchant-row text remains 13px; amount typography remains separate.
+- Summary Category links use a compact 40px minimum height and Merchant links
+  use 36px. Merchant names remain 15px, supporting Merchant-row text remains
+  13px, and amount typography remains separate. These Summary links are compact
+  exceptions; other interactive controls retain 48px minimum targets where
+  applicable.
 - The app-shell CSP does not use `unsafe-inline`: `script-src 'self'`, `style-src 'self'`, and `style-src-attr 'none'`. Validate theme preview/save and main UI flows in browser DevTools after CSP changes.
 
 ## Changelog
+
+**v11.4 — Mobile Summary & Expense List UI**
+- Added a theme-accent Grand Total bar above the Summary table while retaining the bottom Grand Total. The Summary table and its header now use a white background.
+- Tightened Summary Category and Merchant link rows to 40px and 36px, respectively, while keeping Merchant names at 15px.
+- Kept the View / Edit Expenses header on one line on narrow Smartphone screens and expanded its month picker to the full available width.
+- Updated the user-facing app release label to `v11.4`; Service Worker cache revision advanced to `v25` for the updated app-shell assets.
 
 **v11.3 — Summary Merchant Font Cascade Fix**
 - Fixed CSS specificity so Summary Merchant names and their links render at 15px, overriding the 13px Merchant-row baseline. Supporting text remains 13px.

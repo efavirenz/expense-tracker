@@ -39,10 +39,11 @@ function applyAccentColor(hex) {
 applyAccentColor();
 
 // APP_VERSION is the user-facing release label; CACHE_NAME has an independent cache revision.
-const APP_VERSION = 'v11.3';
+const APP_VERSION = 'v11.4';
 
 const appEl = document.getElementById('app');
 const titleEl = document.getElementById('pageTitle');
+const headerEl = document.querySelector('.app-header');
 const backBtn = document.getElementById('backBtn');
 const searchBtn = document.getElementById('searchBtn');
 const homeBtn = document.getElementById('homeBtn');
@@ -328,6 +329,10 @@ function renderSummaryTable(rows, total, showMerchants = true, periodStart = '',
   }).join('');
   const hideClass = !showMerchants ? ' hide-merchants' : '';
   return `
+    <div class="summary-grand-total" role="group" aria-label="Grand Total">
+      <span class="summary-grand-total__label">Grand Total</span>
+      <span class="summary-grand-total__value">${formatTHB(total)}</span>
+    </div>
     <table class="summary-table${hideClass}">
       <thead><tr><th>Category</th><th class="num">Total</th></tr></thead>
       <tbody>${body}</tbody>
@@ -1464,6 +1469,7 @@ function render() {
   }
   const screen = Screens[screenState.view](screenState);
   if (Store.getRecoveryState()) return render();
+  if (headerEl) headerEl.classList.toggle('app-header--expenses-list', screenState.view === 'expensesList');
   titleEl.textContent = screen.title;
   document.title = screen.title ? `${screen.title} - Expense Tracker` : 'Expense Tracker';
   backBtn.hidden = !screen.back;

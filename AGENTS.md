@@ -95,8 +95,8 @@ node test/test-store.js
 
 ## Release and PWA Conventions
 
-- The user-facing release label is `APP_VERSION` in `js/app.js` (currently `v11.3`).
-- The Service Worker cache revision is independent (`expense-tracker-v24`).
+- The user-facing release label is `APP_VERSION` in `js/app.js` (currently `v11.4`).
+- The Service Worker cache revision is independent (`expense-tracker-v25`).
   Increment it whenever an app-shell asset or Service Worker caching behavior changes.
 - Cache cleanup and Force Update must remain scoped to the `expense-tracker-` cache
   namespace and this app's Service Worker registration; do not clear origin-wide caches
@@ -112,11 +112,14 @@ node test/test-store.js
 - BEM-inspired naming: `.block__element--modifier`.
 - Safe area insets: `env(safe-area-inset-bottom)` for iPhone notch/home bar.
 - Accent color is user-configurable at runtime via `applyAccentColor()`.
-- Keep interactive touch targets at least 48 × 48 CSS pixels where applicable.
+- Keep interactive touch targets at least 48 × 48 CSS pixels where applicable;
+  Summary Category and Merchant links are intentional compact exceptions at
+  40px and 36px respectively.
 - Search month fields stack vertically on narrow screens and return to a row at
   the 480px breakpoint; preserve this responsive behavior.
 - Summary merchant names use 15px text; merchant amounts retain their own table
-  typography. Keep Category and Merchant rows compact without shrinking 48px links.
+  typography. Use 40px Category links and 36px Merchant links to keep Summary
+  rows compact; Merchant names remain 15px.
 
 ## Git Rules
 
