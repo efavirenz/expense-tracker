@@ -25,7 +25,7 @@ Currency: THB. Target: mobile Safari (iPhone home screen install).
 expense_tracker/
 ├── index.html            # App shell, meta tags, script loader
 ├── manifest.json         # PWA manifest (standalone, icons, theme)
-├── service-worker.js     # Offline cache (key: expense-tracker-v22)
+├── service-worker.js     # Offline cache (key: expense-tracker-v23)
 ├── css/
 │   └── style.css         # Mobile-first styles, CSS variables, BEM-ish
 ├── js/
@@ -95,8 +95,8 @@ node test/test-store.js
 
 ## Release and PWA Conventions
 
-- The user-facing release label is `APP_VERSION` in `js/app.js` (currently `v11.1`).
-- The Service Worker cache revision is independent (`expense-tracker-v22`).
+- The user-facing release label is `APP_VERSION` in `js/app.js` (currently `v11.2`).
+- The Service Worker cache revision is independent (`expense-tracker-v23`).
   Increment it whenever an app-shell asset or Service Worker caching behavior changes.
 - Cache cleanup and Force Update must remain scoped to the `expense-tracker-` cache
   namespace and this app's Service Worker registration; do not clear origin-wide caches

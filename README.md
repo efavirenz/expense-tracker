@@ -89,8 +89,8 @@ Two things were added during planning review, both agreed on beforehand:
 
 ## Release and cache versions
 
-The home-screen label is the user-facing application release (`v11.1`). The
-Service Worker cache name (`expense-tracker-v22`) is an independent cache
+The home-screen label is the user-facing application release (`v11.2`). The
+Service Worker cache name (`expense-tracker-v23`) is an independent cache
 revision, not a second spelling of the application version. Increment the cache
 revision whenever an app-shell asset or Service Worker caching behavior changes;
 update the app version when publishing a user-facing release.
@@ -99,10 +99,14 @@ update the app version when publishing a user-facing release.
 
 - Interactive controls use a minimum 48 × 48 CSS-pixel touch target where applicable.
 - Search month filters stack vertically on narrow mobile screens and display side by side at viewport widths of 480px or more.
-- Summary Category and Merchant links retain 48px minimum height while table rows avoid extra vertical cell padding. Merchant names use 15px text; amount typography remains separate.
+- Summary Category and Merchant links retain 48px minimum height while table rows avoid extra vertical cell padding. Merchant names use 17px text; supporting Merchant-row text remains 13px; amount typography remains separate.
 - The app-shell CSP does not use `unsafe-inline`: `script-src 'self'`, `style-src 'self'`, and `style-src-attr 'none'`. Validate theme preview/save and main UI flows in browser DevTools after CSP changes.
 
 ## Changelog
+
+**v11.2 — Summary Merchant Readability**
+- Increased Summary Merchant names from 15px to 17px for improved readability on iPhone. Supporting text in Merchant rows remains 13px.
+- Updated the user-facing app release label to `v11.2`; Service Worker cache revision advanced to `v23` so clients receive the updated stylesheet.
 
 **v11.1 — Home Version Badge Spacing**
 - Reduced the Home screen version badge vertical footprint and removed its bottom margin for a tighter layout. The badge remains right-aligned and retains its Force Update action.
@@ -117,7 +121,7 @@ update the app version when publishing a user-facing release.
 - **Safer CSV export**: Formula-prefix detection now handles leading whitespace/control characters in addition to direct formula prefixes.
 - **PWA cache reliability**: Service Worker uses exact URL matching, tracks revalidation and cache writes with the fetch event lifetime, and deletes only Expense Tracker caches. Force Update is scoped to this app's registration/cache namespace.
 - **Navigation and accessibility**: Added Browser Back/Forward synchronization, native buttons for actionable rows and summary links, modal accessible names/focus restoration, 48px minimum touch targets and English document language metadata.
-- **Release convention**: User-facing app version is **v11.1**; Service Worker cache revision is independently **v22** and is incremented when cached assets or SW behavior changes.
+- **Release convention**: User-facing app release label and Service Worker cache revision are independent; current values are **v11.2** and **v23**, respectively.
 - **Automated validation**: Expanded the zero-dependency Store suite to 97 assertions covering amount validation, legacy/v3 backup behavior, restore and migration fault injection, storage recovery, CSV formula protection, cross-tab changes and preference-write failures. Browser/iOS device testing remains a separate manual validation requirement.
 
 **v10.0 — Comprehensive Technical Audit, Security Hardening & Zero-Dep Test Suite**

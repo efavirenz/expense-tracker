@@ -537,7 +537,7 @@ button.expense-row {
   font-weight: 400;
   color: var(--text-muted);
 }
-.summary-table__merchant-name { font-size: 15px; }
+.summary-table__merchant-name { font-size: 17px; }
 .summary-table__merchant-name { padding-left: 16px; white-space: pre-wrap; }
 .summary-table__merchant-name--empty { font-style: italic; }
 .summary-table__link {
