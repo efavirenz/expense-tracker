@@ -95,8 +95,8 @@ node test/test-store.js
 
 ## Release and PWA Conventions
 
-- The user-facing release label is `APP_VERSION` in `js/app.js` (currently `v11.4`).
-- The Service Worker cache revision is independent (`expense-tracker-v25`).
+- The user-facing release label is `APP_VERSION` in `js/app.js` (currently `v11.5`).
+- The Service Worker cache revision is independent (`expense-tracker-v26`).
   Increment it whenever an app-shell asset or Service Worker caching behavior changes.
 - Cache cleanup and Force Update must remain scoped to the `expense-tracker-` cache
   namespace and this app's Service Worker registration; do not clear origin-wide caches
@@ -112,6 +112,8 @@ node test/test-store.js
 - BEM-inspired naming: `.block__element--modifier`.
 - Safe area insets: `env(safe-area-inset-bottom)` for iPhone notch/home bar.
 - Accent color is user-configurable at runtime via `applyAccentColor()`.
+- The default accent is `#0866CB` and accent saves must keep white-on-accent text
+  at or above the 4.5:1 WCAG AA contrast ratio.
 - Keep interactive touch targets at least 48 × 48 CSS pixels where applicable;
   Summary Category and Merchant links are intentional compact exceptions at
   40px and 36px respectively.

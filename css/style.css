@@ -3,8 +3,8 @@
   --surface: #FFFFFF;
   --text: #1C1C1E;
   --text-muted: #6B6B66;
-  --accent: #0B81FE;
-  --accent-dark: #0866CB;
+  --accent: #0866CB;
+  --accent-dark: #0651A2;
   --accent-soft: #E6F2FF;
   --warn: #B3541E;
   --danger: #B3261E;
@@ -40,6 +40,18 @@ button, input, select { min-height: 48px; }
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .app-header {
@@ -399,6 +411,11 @@ textarea {
 }
 .btn--primary { background: var(--accent); color: #fff; }
 .btn--primary:active { background: var(--accent-dark); }
+.btn:disabled, .btn[disabled] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.btn:disabled:active, .btn[disabled]:active { background: var(--accent); }
 .btn--ghost { background: var(--surface); color: var(--text); border-color: var(--border); }
 .btn--danger { background: var(--danger-soft); color: var(--danger); }
 
@@ -668,7 +685,7 @@ button.expense-row {
   max-width: 90%;
   text-align: center;
 }
-.toast--visible { opacity: 1; transform: translate(-50%, 0); }
+.toast--visible { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
 .toast--error { background: var(--danger); }
 
 /* ---- modal ---- */

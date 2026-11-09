@@ -8,7 +8,7 @@ if ('serviceWorker' in navigator) {
           if (newWorker) {
             newWorker.addEventListener('statechange', () => {
               if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                if (typeof showToast === 'function') showToast('New version available — reload to update');
+                if (typeof showToast === 'function') showToast('New version available — close and reopen the app to update');
               }
             });
           }

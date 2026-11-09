@@ -31,12 +31,14 @@ const Store = (function () {
     [STORAGE_KEYS.expenses]: [],
     [STORAGE_KEYS.merchants]: DEFAULT_MERCHANTS.slice(),
     [STORAGE_KEYS.showMerchants]: true,
-    [STORAGE_KEYS.accentColor]: '#0B81FE'
+    [STORAGE_KEYS.accentColor]: '#0866CB'
   };
   const MAX_EXPENSES = 50000;
   const MAX_LABELS = 500;
   const MAX_TEXT_LENGTH = 500;
   const MAX_AMOUNT = Number.MAX_SAFE_INTEGER / 100;
+  const MAX_BACKUP_CHARS = 6 * 1024 * 1024;
+  const SAFE_ID_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/;
   let recoveryState = null;
 
   function deepClone(val) {
@@ -111,6 +113,13 @@ const Store = (function () {
   }
 
   function readJSON(key, fallback) {
+    if (readBatchSnapshot && Object.prototype.hasOwnProperty.call(readBatchSnapshot, key)) {
+      return readBatchSnapshot[key];
+    }
+    return readJSONDirect(key, fallback);
+  }
+
+  function readJSONDirect(key, fallback) {
     if (recoveryState) return deepClone(fallback);
     if (Object.prototype.hasOwnProperty.call(cache, key)) return deepClone(cache[key]);
     const read = safeGetItem(key);
@@ -134,6 +143,27 @@ const Store = (function () {
     }
     cache[key] = parsed;
     return deepClone(parsed);
+  }
+
+  // Read batches let a render/export operation reuse one consistent snapshot
+  // instead of re-reading and deep-cloning every stored key on each accessor.
+  let readBatchDepth = 0;
+  let readBatchSnapshot = null;
+
+  function beginReadBatch() {
+    if (readBatchDepth === 0) {
+      readBatchSnapshot = Object.create(null);
+      for (const key of Object.keys(DEFAULT_VALUES)) {
+        readBatchSnapshot[key] = readJSONDirect(key, DEFAULT_VALUES[key]);
+      }
+    }
+    readBatchDepth++;
+  }
+
+  function endReadBatch() {
+    if (readBatchDepth === 0) return;
+    readBatchDepth--;
+    if (readBatchDepth === 0) readBatchSnapshot = null;
   }
 
   function writeJSON(key, value) {
@@ -425,6 +455,7 @@ const Store = (function () {
   function addMerchant(rawName) {
     const name = (rawName || '').trim();
     if (!name) return { ok: false, error: 'Please enter a merchant name.' };
+    if (name.length > 100) return { ok: false, error: 'Merchant names must be 100 characters or fewer.' };
     if (merchantExists(name)) return { ok: false, error: `Merchant "${name}" already exists.` };
     const merchants = getMerchants();
     merchants.push(name);
@@ -522,7 +553,7 @@ const Store = (function () {
     const amt = validateAmount(amount);
     if (!amt.ok) return amt;
     if (!date || !isValidCalendarDate(date)) return { ok: false, error: 'Please select a valid date.' };
-    if (date > todayISO()) return { ok: false, error: 'Date cannot be in the future.' };
+    if (date > tomorrowISO()) return { ok: false, error: 'Date cannot be in the future.' };
     if (typeof category !== 'string' || !category.trim() || category.length > 100 || !getSelectableCategories().includes(category)) {
       return { ok: false, error: 'Please select an active category.' };
     }
@@ -692,21 +723,29 @@ const Store = (function () {
   // ---------- JSON backup / restore ----------
 
   function exportBackup() {
-    const payload = {
-      app: 'expense-tracker-pwa',
-      version: 3,
-      removedCategoryPolicy: 'virtual-orphan-v1',
-      removedExpenseIds: getExpenses().filter(expense => expense.category === RESERVED_CATEGORY).map(expense => expense.id),
-      exportedAt: new Date().toISOString(),
-      categories: getCategories().filter(category => category !== RESERVED_CATEGORY),
-      merchants: getMerchants(),
-      expenses: getExpenses(),
-      accentColor: getAccentColor()
-    };
-    return JSON.stringify(payload, null, 2);
+    beginReadBatch();
+    try {
+      const payload = {
+        app: 'expense-tracker-pwa',
+        version: 3,
+        removedCategoryPolicy: 'virtual-orphan-v1',
+        removedExpenseIds: getExpenses().filter(expense => expense.category === RESERVED_CATEGORY).map(expense => expense.id),
+        exportedAt: new Date().toISOString(),
+        categories: getCategories().filter(category => category !== RESERVED_CATEGORY),
+        merchants: getMerchants(),
+        expenses: getExpenses(),
+        accentColor: getAccentColor()
+      };
+      return JSON.stringify(payload, null, 2);
+    } finally {
+      endReadBatch();
+    }
   }
 
   function importBackup(jsonString) {
+    if (typeof jsonString !== 'string' || jsonString.length > MAX_BACKUP_CHARS) {
+      return { ok: false, code: 'BACKUP_TOO_LARGE', error: 'Backup file is too large to restore (maximum 6 MB of JSON).' };
+    }
     let data;
     try { data = JSON.parse(jsonString); }
     catch (error) { return { ok: false, code: 'INVALID_JSON', error: 'File is not valid JSON.' }; }
@@ -743,7 +782,7 @@ const Store = (function () {
     const expenses = [];
     for (const source of data.expenses) {
       if (!source || typeof source !== 'object' || Array.isArray(source) ||
-          (source.id !== undefined && (typeof source.id !== 'string' || !source.id.trim() || source.id.length > 128)) ||
+          (source.id !== undefined && (typeof source.id !== 'string' || !SAFE_ID_PATTERN.test(source.id))) ||
           typeof source.date !== 'string' || !isValidCalendarDate(source.date) || source.date > tomorrowISO() ||
           typeof source.amount !== 'number' || !Number.isFinite(source.amount) || source.amount <= 0 || source.amount > MAX_AMOUNT ||
           !Number.isSafeInteger(Math.round(source.amount * 100)) || Math.round(source.amount * 100) < 1 ||
@@ -753,7 +792,7 @@ const Store = (function () {
           (source.note !== undefined && source.note !== null && (typeof source.note !== 'string' || source.note.length > MAX_TEXT_LENGTH)) ||
           (source.createdAt !== undefined && (typeof source.createdAt !== 'string' || !Number.isFinite(Date.parse(source.createdAt)))) ||
           (source.updatedAt !== undefined && (typeof source.updatedAt !== 'string' || !Number.isFinite(Date.parse(source.updatedAt))))) {
-        return { ok: false, code: 'INVALID_EXPENSE', error: 'Backup contains an invalid expense (check date, amount, category, merchant, note, and timestamps).' };
+        return { ok: false, code: 'INVALID_EXPENSE', error: 'Backup contains an invalid expense (check id, date, amount, category, merchant, note, and timestamps).' };
       }
       let category = source.category.trim();
       if (category === LEGACY_RESERVED_CATEGORY) category = RESERVED_CATEGORY;
@@ -818,7 +857,7 @@ const Store = (function () {
   }
 
   function getAccentColor() {
-    return readJSON(STORAGE_KEYS.accentColor, '#0B81FE');
+    return readJSON(STORAGE_KEYS.accentColor, '#0866CB');
   }
 
   function setAccentColor(hex) {
@@ -924,6 +963,7 @@ const Store = (function () {
     summarizeByCategory, summarizeByCategoryAndMerchant, grandTotal, summaryToCSV, expensesToCSV,
     exportBackup, importBackup, getShowMerchants, setShowMerchants, getAccentColor, setAccentColor,
     getRecoveryState, exportRecoveryData, restoreRecoverySnapshot, resetRecoveryData,
+    beginReadBatch, endReadBatch,
     RESERVED_CATEGORY, NO_MERCHANT_LABEL
   };
 })();

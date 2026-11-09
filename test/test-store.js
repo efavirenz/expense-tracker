@@ -360,6 +360,171 @@ console.log('--- Running Store Tests ---');
   assert(Store.getShowMerchants() === false, 'Failed preference write does not alter the in-memory preference');
 }
 
+// Search, update, delete and range accessors.
+{
+  const { Store } = createEnvironment();
+  Store.init();
+  const today = Store.todayISO();
+  const month = Store.currentMonthISO();
+  const first = Store.addExpense({ date: today, amount: '12.50', category: 'Food & Drink🍔', merchant: 'Shopee', note: 'Lunch' });
+  const second = Store.addExpense({ date: today, amount: '20.00', category: 'Food & Drink🍔', merchant: '', note: 'Snack' });
+  assert(first.ok && second.ok, 'Search fixtures are created');
+
+  assertEqual(Store.searchExpenses(month, month, 'shopee').map(e => e.id), [first.record.id], 'searchExpenses matches merchant case-insensitively');
+  assert(Store.searchExpenses(month, month, 'FOOD').length === 2, 'searchExpenses matches category text');
+  assertEqual(Store.searchExpenses(month, month, '12.5').map(e => e.id), [first.record.id], 'searchExpenses matches a raw amount substring');
+  assertEqual(Store.searchExpenses(month, month, '20.00').map(e => e.id), [second.record.id], 'searchExpenses matches a fixed-precision amount');
+  assertEqual(Store.searchExpenses(month, month, 'zzz'), [], 'searchExpenses returns no matches for unknown text');
+  assertEqual(Store.searchExpenses(month, month, ''), [], 'searchExpenses returns nothing for an empty query');
+
+  assert(Store.updateExpense(first.record.id, { date: today, amount: '15.75', category: 'Food & Drink🍔', merchant: 'Shopee', note: 'Updated' }).ok, 'updateExpense saves valid changes');
+  assert(Store.getExpenses().find(e => e.id === first.record.id).amount === 15.75, 'updateExpense persists the new amount');
+  assert(!Store.updateExpense('missing-id', { date: today, amount: 1, category: 'Food & Drink🍔' }).ok, 'updateExpense reports a missing record');
+
+  assert(Store.getExpensesForDate(today).length === 2, 'getExpensesForDate returns matching records');
+  assert(Store.getExpensesForMonth(month).length === 2, 'getExpensesForMonth returns matching records');
+  assert(Store.getExpensesInRange(today, today).length === 2, 'getExpensesInRange includes both endpoints');
+  assert(Store.getExpensesInRangeFiltered(today, today, 'Food & Drink🍔', 'Shopee').length === 1, 'getExpensesInRangeFiltered filters by merchant');
+  assert(Store.getExpensesInRangeFiltered(today, today, 'Food & Drink🍔', Store.NO_MERCHANT_LABEL).length === 1, 'getExpensesInRangeFiltered filters the no-merchant label');
+
+  assert(Store.deleteExpense(first.record.id).ok && Store.getExpenses().length === 1, 'deleteExpense removes a record');
+  const beforeMissingDelete = Store.getExpenses().length;
+  assert(Store.deleteExpense('missing-id').ok && Store.getExpenses().length === beforeMissingDelete, 'deleteExpense is a safe no-op for a missing record');
+}
+
+// Merchant lifecycle, length boundary and read-time validation.
+{
+  const { Store } = createEnvironment();
+  Store.init();
+  const today = Store.todayISO();
+  assert(Store.addMerchant('Zed').ok, 'addMerchant accepts a new merchant');
+  assert(!Store.addMerchant('zed').ok, 'addMerchant rejects case-insensitive duplicates');
+  assert(!Store.addMerchant('x'.repeat(101)).ok, 'addMerchant rejects names longer than 100 characters');
+  assert(Store.addMerchant('y'.repeat(100)).ok, 'addMerchant accepts exactly 100 characters');
+  assert(Store.addExpense({ date: today, amount: 5, category: 'Food & Drink🍔', merchant: 'Zed' }).ok, 'Expense with a remembered merchant saves');
+  assert(Store.rememberMerchant('ZED').ok, 'rememberMerchant is safe for an existing name');
+  assert(Store.getMerchants().filter(m => m.toLowerCase() === 'zed').length === 1, 'rememberMerchant does not duplicate case variants');
+  assert(Store.renameMerchant('Zed', 'Zed Two').ok, 'renameMerchant updates the merchant list');
+  assert(Store.getExpenses()[0].merchant === 'Zed Two', 'renameMerchant updates past expenses');
+  assert(!Store.renameMerchant('Missing', 'Other').ok, 'renameMerchant reports a missing merchant');
+  assert(Store.deleteMerchant('Zed Two').ok, 'deleteMerchant removes the merchant');
+  assert(Store.getExpenses()[0].merchant === '', 'deleteMerchant clears the merchant from past expenses');
+  assert(!Store.deleteMerchant('Zed Two').ok, 'deleteMerchant reports a missing merchant');
+}
+
+// Date ceilings: add is today-only, update and legacy import tolerate tomorrow.
+{
+  const { Store } = createEnvironment();
+  Store.init();
+  const today = Store.todayISO();
+  const tomorrow = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  })();
+  const dayAfterTomorrow = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 2);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  })();
+  const added = Store.addExpense({ date: today, amount: 10, category: 'Food & Drink🍔' });
+  assert(!Store.addExpense({ date: tomorrow, amount: 10, category: 'Food & Drink🍔' }).ok, 'addExpense rejects a tomorrow date');
+  assert(Store.updateExpense(added.record.id, { date: tomorrow, amount: 10, category: 'Food & Drink🍔' }).ok, 'updateExpense accepts an imported tomorrow record');
+
+  const v3Future = { app: 'expense-tracker-pwa', version: 3, categories: ['Food & Drink🍔'], expenses: [{ id: 'future-v3', date: tomorrow, amount: 1, category: 'Food & Drink🍔' }] };
+  assert(Store.importBackup(JSON.stringify(v3Future)).ok, 'v3 import accepts tomorrow so its own exports remain restorable');
+  const v3FarFuture = { ...v3Future, expenses: [{ ...v3Future.expenses[0], id: 'far-future-v3', date: dayAfterTomorrow }] };
+  assert(!Store.importBackup(JSON.stringify(v3FarFuture)).ok, 'v3 import rejects dates beyond tomorrow');
+  const v1Future = { ...v3Future, version: 1 };
+  assert(Store.importBackup(JSON.stringify(v1Future)).ok, 'legacy v1 import still tolerates a tomorrow date');
+  const v2Future = { ...v3Future, version: 2 };
+  assert(Store.importBackup(JSON.stringify(v2Future)).ok, 'legacy v2 import still tolerates a tomorrow date');
+
+  const leapDay = { app: 'expense-tracker-pwa', version: 3, categories: ['Food & Drink🍔'], expenses: [{ id: 'leap-day', date: '2024-02-29', amount: 1, category: 'Food & Drink🍔' }] };
+  assert(Store.importBackup(JSON.stringify(leapDay)).ok, 'A valid leap day imports');
+  const invalidLeapDay = { ...leapDay, expenses: [{ ...leapDay.expenses[0], id: 'bad-leap', date: '2023-02-29' }] };
+  assert(!Store.importBackup(JSON.stringify(invalidLeapDay)).ok, 'An invalid leap day is rejected');
+
+  const december = createEnvironment({
+    expenseApp_expenses_v1: JSON.stringify([{ id: 'dec-31', date: '2026-12-31', amount: 1, category: 'Food & Drink🍔', merchant: '', note: '' }])
+  });
+  december.Store.init();
+  assert(december.Store.getExpensesForMonth('2026-12').length === 1 && december.Store.getExpensesForMonth('2027-01').length === 0, 'Month filtering handles a December to January boundary');
+}
+
+// Expense IDs are charset-restricted on import but existing stored IDs stay readable.
+{
+  const { Store } = createEnvironment();
+  Store.init();
+  const today = Store.todayISO();
+  const unsafe = { app: 'expense-tracker-pwa', version: 3, categories: ['Food & Drink🍔'], expenses: [{ id: 'bad"id', date: today, amount: 1, category: 'Food & Drink🍔' }] };
+  const unsafeResult = Store.importBackup(JSON.stringify(unsafe));
+  assert(!unsafeResult.ok && unsafeResult.code === 'INVALID_EXPENSE', 'Import rejects an expense ID with unsafe characters');
+  const safe = { app: 'expense-tracker-pwa', version: 3, categories: ['Food & Drink🍔'], expenses: [{ id: 'abc_DEF-123:x.y', date: today, amount: 1, category: 'Food & Drink🍔' }] };
+  assert(Store.importBackup(JSON.stringify(safe)).ok, 'Import accepts the documented safe ID charset');
+  const omitted = { app: 'expense-tracker-pwa', version: 3, categories: ['Food & Drink🍔'], expenses: [{ date: today, amount: 1, category: 'Food & Drink🍔' }] };
+  assert(Store.importBackup(JSON.stringify(omitted)).ok && Store.getExpenses()[0].id.length > 0, 'Import generates an ID when one is omitted');
+  const duplicate = { app: 'expense-tracker-pwa', version: 3, categories: ['Food & Drink🍔'], expenses: [{ id: 'same', date: today, amount: 1, category: 'Food & Drink🍔' }, { id: 'same', date: today, amount: 2, category: 'Food & Drink🍔' }] };
+  assert(Store.importBackup(JSON.stringify(duplicate)).ok && new Set(Store.getExpenses().map(e => e.id)).size === 2, 'Import regenerates duplicate IDs');
+
+  const storedUnsafe = createEnvironment({
+    expenseApp_expenses_v1: JSON.stringify([{ id: 'bad"id', date: today, amount: 1, category: 'Food & Drink🍔', merchant: '', note: '' }])
+  });
+  assert(storedUnsafe.Store.init().ok && storedUnsafe.Store.getExpenses().length === 1, 'Existing stored IDs are not retroactively invalidated');
+}
+
+// Accent default and validation.
+{
+  const { Store } = createEnvironment();
+  Store.init();
+  assert(Store.getAccentColor() === '#0866CB', 'Default accent uses the accessible contrast-safe color');
+  ['', 'red', '#12345', '#GGGGGG', '#1234567'].forEach(value => {
+    assert(!Store.setAccentColor(value).ok, `setAccentColor rejects ${JSON.stringify(value)}`);
+  });
+  assert(Store.setAccentColor('#123456').ok && Store.getAccentColor() === '#123456', 'setAccentColor saves a valid color');
+}
+
+// Backup size guard and tolerant orphan metadata handling.
+{
+  const { Store } = createEnvironment();
+  Store.init();
+  const today = Store.todayISO();
+  const oversized = 'x'.repeat(6 * 1024 * 1024 + 1);
+  const sizeResult = Store.importBackup(oversized);
+  assert(!sizeResult.ok && sizeResult.code === 'BACKUP_TOO_LARGE', 'importBackup rejects an oversized payload before parsing');
+  const weirdMetadata = {
+    app: 'expense-tracker-pwa', version: 3, removedCategoryPolicy: 'virtual-orphan-v1', removedExpenseIds: [1, 2],
+    categories: ['Food & Drink🍔'], expenses: [{ id: 'normal-row', date: today, amount: 1, category: 'Food & Drink🍔' }]
+  };
+  assert(Store.importBackup(JSON.stringify(weirdMetadata)).ok, 'Non-string orphan metadata does not block a normal restore');
+}
+
+// Read batches share one snapshot and never write through to the cache.
+{
+  const { Store } = createEnvironment();
+  Store.init();
+  Store.addExpense({ date: Store.todayISO(), amount: 10, category: 'Food & Drink🍔' });
+  const originalCount = Store.getExpenses().length;
+  Store.beginReadBatch();
+  const snapshotA = Store.getExpenses();
+  const snapshotB = Store.getExpenses();
+  assert(snapshotA === snapshotB, 'A read batch returns one shared snapshot');
+  snapshotA.push({ id: 'mutated-in-batch', date: Store.todayISO(), amount: 1, category: 'Food & Drink🍔' });
+  assert(Store.getExpenses().length === originalCount + 1, 'The active batch reflects its own in-memory snapshot');
+  Store.endReadBatch();
+  assert(Store.getExpenses().length === originalCount, 'Mutating a batched snapshot never changes the stored cache');
+
+  Store.beginReadBatch();
+  Store.beginReadBatch();
+  Store.getExpenses().push({ id: 'nested-mutation', date: Store.todayISO(), amount: 1, category: 'Food & Drink🍔' });
+  Store.endReadBatch();
+  assert(Store.getExpenses().length === originalCount + 1, 'Nested batches remain active until the outermost end');
+  Store.endReadBatch();
+  assert(Store.getExpenses().length === originalCount, 'Ending the outer batch releases the shared snapshot');
+  Store.endReadBatch();
+  assert(true, 'endReadBatch is safe without an active batch');
+}
+
 console.log('\n-----------------------------------');
 console.log(`Test Results: ${passedTests}/${totalTests} passed, ${failedTests} failed.`);
 if (failedTests > 0) process.exit(1);

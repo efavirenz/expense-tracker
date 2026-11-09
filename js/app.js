@@ -8,7 +8,7 @@ Store.init();
 
 function hexToRgb(hex) {
   const c = (hex || '').replace('#', '');
-  if (c.length !== 6) return { r: 11, g: 129, b: 254 };
+  if (c.length !== 6) return { r: 8, g: 102, b: 203 };
   return {
     r: parseInt(c.substring(0, 2), 16),
     g: parseInt(c.substring(2, 4), 16),
@@ -16,8 +16,31 @@ function hexToRgb(hex) {
   };
 }
 
+function relativeLuminance(hex) {
+  const rgb = hexToRgb(hex);
+  const channels = [rgb.r, rgb.g, rgb.b].map(value => {
+    const channel = value / 255;
+    return channel <= 0.03928 ? channel / 12.92 : Math.pow((channel + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+}
+
+function contrastRatio(backgroundHex, foregroundHex) {
+  const background = relativeLuminance(backgroundHex);
+  const foreground = relativeLuminance(foregroundHex);
+  const lighter = Math.max(background, foreground);
+  const darker = Math.min(background, foreground);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+const MIN_ACCENT_CONTRAST = 4.5;
+const MAX_BACKUP_FILE_BYTES = 5 * 1024 * 1024;
+function accentHasSufficientContrast(hex) {
+  return contrastRatio(hex, '#FFFFFF') >= MIN_ACCENT_CONTRAST;
+}
+
 function applyAccentColor(hex) {
-  const color = hex || Store.getAccentColor() || '#0B81FE';
+  const color = hex || Store.getAccentColor() || '#0866CB';
   const rgb = hexToRgb(color);
   if (isNaN(rgb.r) || isNaN(rgb.g) || isNaN(rgb.b)) return;
   const darkRgb = {
@@ -39,7 +62,7 @@ function applyAccentColor(hex) {
 applyAccentColor();
 
 // APP_VERSION is the user-facing release label; CACHE_NAME has an independent cache revision.
-const APP_VERSION = 'v11.4';
+const APP_VERSION = 'v11.5';
 
 const appEl = document.getElementById('app');
 const titleEl = document.getElementById('pageTitle');
@@ -68,20 +91,44 @@ function monthLabel(yyyyMm) {
 }
 
 let toastTimer = null;
-if (toastEl) toastEl.setAttribute('aria-live', 'polite');
+const TOAST_SUCCESS_MS = 2600;
+const TOAST_ERROR_MS = 7000;
+
+function hideToast() {
+  if (!toastEl) return;
+  clearTimeout(toastTimer);
+  toastTimer = null;
+  toastEl.classList.remove('toast--visible');
+}
+
+if (toastEl) {
+  toastEl.setAttribute('aria-live', 'polite');
+  toastEl.addEventListener('click', hideToast);
+}
+
 function showToast(message, isError) {
   if (!toastEl) return;
   toastEl.textContent = message;
   toastEl.classList.toggle('toast--error', !!isError);
   toastEl.classList.add('toast--visible');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => toastEl.classList.remove('toast--visible'), 2600);
+  toastTimer = setTimeout(hideToast, isError ? TOAST_ERROR_MS : TOAST_SUCCESS_MS);
 }
 window.showToast = showToast;
+
+let activeModalCleanup = null;
+
+function closeActiveModal(cancelValue) {
+  const cleanup = activeModalCleanup;
+  if (!cleanup) return;
+  activeModalCleanup = null;
+  cleanup(cancelValue);
+}
 
 function showConfirm(message, opts) {
   opts = opts || {};
   return new Promise(resolve => {
+    closeActiveModal(false);
     const previousFocus = document.activeElement;
     modalRoot.innerHTML = `
       <div class="modal-backdrop" id="modalBackdrop">
@@ -118,11 +165,16 @@ function showConfirm(message, opts) {
     };
 
     const cleanup = (val) => {
+      if (settled) return;
+      settled = true;
+      if (activeModalCleanup === cleanup) activeModalCleanup = null;
       window.removeEventListener('keydown', handleKeyDown);
       modalRoot.innerHTML = '';
       if (previousFocus && previousFocus.isConnected && !previousFocus.disabled) previousFocus.focus();
       resolve(val);
     };
+    let settled = false;
+    activeModalCleanup = cleanup;
 
     window.addEventListener('keydown', handleKeyDown);
     yesBtn.addEventListener('click', () => cleanup(true));
@@ -154,6 +206,7 @@ function downloadTextFile(filename, mime, content) {
 
 function showPrompt(title, placeholder) {
   return new Promise(resolve => {
+    closeActiveModal(null);
     const previousFocus = document.activeElement;
     // Build modal using DOM APIs for synchronous focus (required for iOS keyboard)
     const backdrop = document.createElement('div');
@@ -246,11 +299,16 @@ function showPrompt(title, placeholder) {
     };
 
     const cleanup = (val) => {
+      if (settled) return;
+      settled = true;
+      if (activeModalCleanup === cleanup) activeModalCleanup = null;
       window.removeEventListener('keydown', handleKeyDown);
       modalRoot.innerHTML = '';
       if (previousFocus && previousFocus.isConnected && !previousFocus.disabled) previousFocus.focus();
       resolve(val);
     };
+    let settled = false;
+    activeModalCleanup = cleanup;
 
     window.addEventListener('keydown', handleKeyDown);
     yesBtn.addEventListener('click', submit);
@@ -304,7 +362,7 @@ function renderSummaryTable(rows, total, showMerchants = true, periodStart = '',
   }
   const body = rows.map(r => {
     const catContent = (periodStart && periodEnd)
-      ? `<button type="button" class="summary-table__link" data-action="nav" data-view="filteredExpenses" data-start="${periodStart}" data-end="${periodEnd}" data-category="${escapeHtml(r.category)}">${escapeHtml(r.category)}</button>`
+      ? `<button type="button" class="summary-table__link" data-action="nav" data-view="filteredExpenses" data-start="${escapeHtml(periodStart)}" data-end="${escapeHtml(periodEnd)}" data-category="${escapeHtml(r.category)}">${escapeHtml(r.category)}</button>`
       : escapeHtml(r.category);
 
     const catRow = `
@@ -315,7 +373,7 @@ function renderSummaryTable(rows, total, showMerchants = true, periodStart = '',
 
     const merchantRows = r.merchants.map(m => {
       const merchantContent = (periodStart && periodEnd)
-        ? `<button type="button" class="summary-table__link" data-action="nav" data-view="filteredExpenses" data-start="${periodStart}" data-end="${periodEnd}" data-category="${escapeHtml(r.category)}" data-merchant="${escapeHtml(m.merchant)}">&nbsp;&nbsp;&nbsp;${escapeHtml(m.merchant)}</button>`
+        ? `<button type="button" class="summary-table__link" data-action="nav" data-view="filteredExpenses" data-start="${escapeHtml(periodStart)}" data-end="${escapeHtml(periodEnd)}" data-category="${escapeHtml(r.category)}" data-merchant="${escapeHtml(m.merchant)}">&nbsp;&nbsp;&nbsp;${escapeHtml(m.merchant)}</button>`
         : `&nbsp;&nbsp;&nbsp;${escapeHtml(m.merchant)}`;
 
       return `
@@ -344,6 +402,7 @@ function renderSummaryTable(rows, total, showMerchants = true, periodStart = '',
 
 const HISTORY_STATE_KEY = 'expenseTrackerRouter';
 const state = { stack: [{ view: 'home' }] };
+let focusOnRender = false;
 function topScreen() { return state.stack[state.stack.length - 1]; }
 function syncBrowserHistory(replace) {
   if (!window.history || typeof window.history.pushState !== 'function') return;
@@ -372,6 +431,7 @@ if (window.history && typeof window.history.replaceState === 'function') {
     } else {
       state.stack = [{ view: 'home' }];
     }
+    focusOnRender = true;
     render();
   });
 }
@@ -379,6 +439,7 @@ if (window.history && typeof window.history.replaceState === 'function') {
 function navigate(view, params) {
   state.stack.push(Object.assign({ view }, params));
   syncBrowserHistory(false);
+  focusOnRender = true;
   render();
 }
 function goBack() {
@@ -386,6 +447,7 @@ function goBack() {
   const historyState = window.history && window.history.state;
   const historyIsSynchronized = historyState && historyState[HISTORY_STATE_KEY] === true &&
     JSON.stringify(historyState.stack) === JSON.stringify(state.stack);
+  focusOnRender = true;
   if (historyIsSynchronized) {
     window.history.back();
     return;
@@ -395,13 +457,12 @@ function goBack() {
   render();
 }
 function goHome() {
-  state.stack = [{ view: 'home' }];
-  syncBrowserHistory(false);
-  render();
+  popToView('home');
 }
 function replaceTop(view, params) {
   state.stack[state.stack.length - 1] = Object.assign({ view }, params);
   syncBrowserHistory(true);
+  focusOnRender = true;
   render();
 }
 
@@ -416,6 +477,7 @@ function popToView(view) {
   const historyIsSynchronized = historyState && historyState[HISTORY_STATE_KEY] === true &&
     JSON.stringify(historyState.stack) === JSON.stringify(state.stack);
   const stepsBack = state.stack.length - targetStack.length;
+  focusOnRender = true;
   if (historyIsSynchronized && stepsBack > 0) {
     window.history.go(-stepsBack);
     return;
@@ -441,7 +503,7 @@ const Screens = {
         <div class="home-version-bar">
           <button type="button" class="home-version" data-action="forceUpdate" title="Tap to force update" aria-label="Force app update, version ${APP_VERSION}">${APP_VERSION}</button>
         </div>
-        <button type="button" class="month-glance" data-action="nav" data-view="expensesList" data-month="${month}" aria-label="View expenses for ${monthLabel(month)}">
+        <button type="button" class="month-glance" data-action="nav" data-view="expensesList" data-month="${escapeHtml(month)}" aria-label="View expenses for ${monthLabel(month)}">
           <span class="month-glance__row">
             <span class="month-glance__label">This month - ${monthLabel(month)}</span>
             <span class="month-glance__value">${formatTHB(monthTotal)}</span>
@@ -456,7 +518,7 @@ const Screens = {
           <button class="menu-item" data-action="nav" data-view="addExpense">
             <span>Add Expense</span><span class="chev">&#8250;</span>
           </button>
-          <button class="menu-item" data-action="nav" data-view="expensesList" data-month="${month}">
+          <button class="menu-item" data-action="nav" data-view="expensesList" data-month="${escapeHtml(month)}">
             <span>View / Edit Expenses</span><span class="chev">&#8250;</span>
           </button>
           <button class="menu-item" data-action="nav" data-view="summaryMenu">
@@ -485,7 +547,7 @@ const Screens = {
           <div id="formError" class="form-error" hidden></div>
           <label class="field">
             <span class="field__label">Date</span>
-            <input type="date" id="expDate" value="${today}" max="${today}" required>
+            <input type="date" id="expDate" value="${escapeHtml(today)}" max="${escapeHtml(today)}" required>
           </label>
           <label class="field">
             <span class="field__label">Expense (THB)</span>
@@ -766,7 +828,7 @@ const Screens = {
       back: true,
       html: `
         <div class="toolbar">
-          <input type="month" id="monthPicker" value="${month}">
+          <input type="month" id="monthPicker" value="${escapeHtml(month)}">
         </div>
         <div class="today-summary-bar">
           <span class="today-summary-bar__label">Today's Expenses</span>
@@ -775,7 +837,7 @@ const Screens = {
         ${items.length === 0 ? `<div class="empty-state">No expenses in ${monthLabel(month)}.</div>` : `
         <ul class="expense-list">
           ${items.map(e => `
-            <li><button type="button" class="expense-row ${e.date === today ? 'expense-row--today' : ''}" data-action="nav" data-view="expenseEdit" data-id="${e.id}">
+            <li><button type="button" class="expense-row ${e.date === today ? 'expense-row--today' : ''}" data-action="nav" data-view="expenseEdit" data-id="${escapeHtml(e.id)}">
               <span class="expense-row__main">
                 <span class="expense-row__cat">${escapeHtml(e.category)}${e.merchant ? ` <span class="expense-row__merchant">&middot; ${escapeHtml(e.merchant)}</span>` : ''}</span>
                 <span class="expense-row__date">${formatDateDisplay(e.date)}</span>
@@ -810,11 +872,11 @@ const Screens = {
           <div class="search-range">
             <label class="field">
               <span class="field__label">From Month</span>
-              <input type="month" id="searchStartMonth" value="${startMonth}">
+              <input type="month" id="searchStartMonth" value="${escapeHtml(startMonth)}">
             </label>
             <label class="field">
               <span class="field__label">To Month</span>
-              <input type="month" id="searchEndMonth" value="${endMonth}">
+              <input type="month" id="searchEndMonth" value="${escapeHtml(endMonth)}">
             </label>
           </div>
           <label class="field">
@@ -822,6 +884,7 @@ const Screens = {
             <input type="text" id="searchInput" maxlength="100" value="${escapeHtml(query)}" placeholder="Category, merchant, note, amount&hellip;" autofocus autocomplete="off">
           </label>
         </div>
+        <div id="searchStatus" class="sr-only" role="status" aria-live="polite"></div>
         <div id="searchResultsContainer"></div>`,
       afterRender() {
         const startInput = document.getElementById('searchStartMonth');
@@ -847,20 +910,29 @@ const Screens = {
           topScreen().startMonth = sm;
           topScreen().endMonth = em;
           topScreen().query = q;
+          // Keep browser history aligned with the updated search route state.
+          syncBrowserHistory(true);
+          const statusEl = document.getElementById('searchStatus');
+          const setStatus = (message) => {
+            if (statusEl) statusEl.textContent = message;
+          };
 
           if (!q.trim()) {
             resultsContainer.innerHTML = `<div class="empty-state">Enter text to search expenses.</div>`;
+            setStatus('Enter text to search expenses.');
             return;
           }
 
           if (sm && em && sm > em) {
             resultsContainer.innerHTML = `<div class="form-error">"From Month" must be before or equal to "To Month".</div>`;
+            setStatus('"From Month" must be before or equal to "To Month".');
             return;
           }
 
           const results = Store.searchExpenses(sm, em, q);
           if (results.length === 0) {
             resultsContainer.innerHTML = `<div class="empty-state">No matching expenses found.</div>`;
+            setStatus('No matching expenses found.');
             return;
           }
 
@@ -868,7 +940,7 @@ const Screens = {
             <div class="search-results-info">Found ${results.length} item${results.length === 1 ? '' : 's'}</div>
             <ul class="expense-list">
               ${results.map(e => `
-                <li><button type="button" class="expense-row" data-action="nav" data-view="expenseEdit" data-id="${e.id}">
+                <li><button type="button" class="expense-row" data-action="nav" data-view="expenseEdit" data-id="${escapeHtml(e.id)}">
                   <span class="expense-row__main">
                     <span class="expense-row__cat">${escapeHtml(e.category)}${e.merchant ? ` <span class="expense-row__merchant">&middot; ${escapeHtml(e.merchant)}</span>` : ''}</span>
                     <span class="expense-row__date">${formatDateDisplay(e.date)}</span>
@@ -877,6 +949,7 @@ const Screens = {
                   <span class="expense-row__amt">${formatTHB(e.amount)}</span>
                 </button></li>`).join('')}
             </ul>`;
+          setStatus(`Found ${results.length} item${results.length === 1 ? '' : 's'}.`);
         }
 
         startInput.addEventListener('change', renderResults);
@@ -893,23 +966,26 @@ const Screens = {
     if (!record) {
       return { title: 'Edit Expense', back: true, html: `<div class="empty-state">This expense no longer exists.</div>` };
     }
+    const isOrphan = record.category === Store.RESERVED_CATEGORY;
+    const maxDate = record.date > Store.todayISO() ? record.date : Store.todayISO();
     return {
       title: 'Edit Expense',
       back: true,
       html: `
         <form class="form" id="expenseEditForm">
           <div id="formError" class="form-error" hidden></div>
+          ${isOrphan ? `<div class="section-hint" role="note">The category for this expense was removed. Choose an active category before saving changes.</div>` : ''}
           <label class="field">
             <span class="field__label">Date</span>
-            <input type="date" id="editDate" value="${record.date}" max="${Store.todayISO()}" required>
+            <input type="date" id="editDate" value="${escapeHtml(record.date)}" max="${escapeHtml(maxDate)}" required>
           </label>
           <label class="field">
             <span class="field__label">Expense (THB)</span>
-            <input type="number" id="editAmount" inputmode="decimal" step="0.01" min="0.01" value="${record.amount}" required>
+            <input type="number" id="editAmount" inputmode="decimal" step="0.01" min="0.01" value="${escapeHtml(record.amount)}" required>
           </label>
           <label class="field">
             <span class="field__label">Category</span>
-            <select id="editCategory" required>${categoryOptionsHtml(record.category, record.category)}</select>
+            <select id="editCategory" required>${categoryOptionsHtml(isOrphan ? '' : record.category, isOrphan ? '' : record.category)}</select>
           </label>
           <label class="field">
             <span class="field__label">Merchant (optional)</span>
@@ -925,13 +1001,22 @@ const Screens = {
           <div class="form-actions">
             <button type="button" class="btn btn--danger" id="deleteExpBtn">Delete</button>
             <button type="button" class="btn btn--ghost" id="cancelExpBtn">Cancel</button>
-            <button type="submit" class="btn btn--primary">Save</button>
+            <button type="submit" class="btn btn--primary" id="editSaveBtn" ${isOrphan ? 'disabled' : ''}>Save</button>
           </div>
         </form>`,
       afterRender() {
         const editMerchSelect = document.getElementById('editMerchant');
         if (editMerchSelect) {
           setupMerchantSelectListener(editMerchSelect);
+        }
+        const catSelect = document.getElementById('editCategory');
+        const saveBtn = document.getElementById('editSaveBtn');
+        if (isOrphan && catSelect && saveBtn) {
+          const syncSaveState = () => {
+            saveBtn.disabled = !catSelect.value;
+          };
+          catSelect.addEventListener('change', syncSaveState);
+          syncSaveState();
         }
         document.getElementById('expenseEditForm').addEventListener('submit', (e) => {
           e.preventDefault();
@@ -988,10 +1073,10 @@ const Screens = {
       back: true,
       html: `
         <nav class="menu-list">
-          <button class="menu-item" data-action="currentMonth" data-mode="${p.mode}">
+          <button class="menu-item" data-action="currentMonth" data-mode="${escapeHtml(p.mode)}">
             <span>Current Month</span><span class="chev">&#8250;</span>
           </button>
-          <button class="menu-item" data-action="nav" data-view="rangePicker" data-mode="${p.mode}">
+          <button class="menu-item" data-action="nav" data-view="rangePicker" data-mode="${escapeHtml(p.mode)}">
             <span>Choose Period</span><span class="chev">&#8250;</span>
           </button>
         </nav>`
@@ -1009,11 +1094,11 @@ const Screens = {
           <div id="formError" class="form-error" hidden></div>
           <label class="field">
             <span class="field__label">From</span>
-            <input type="date" id="rangeStart" value="${firstOfMonth}" max="${today}" required>
+            <input type="date" id="rangeStart" value="${escapeHtml(firstOfMonth)}" max="${escapeHtml(today)}" required>
           </label>
           <label class="field">
             <span class="field__label">To</span>
-            <input type="date" id="rangeEnd" value="${today}" max="${today}" required>
+            <input type="date" id="rangeEnd" value="${escapeHtml(today)}" max="${escapeHtml(today)}" required>
           </label>
           <div class="form-actions">
             <button type="button" class="btn btn--ghost" data-action="goBack">Cancel</button>
@@ -1054,7 +1139,7 @@ const Screens = {
           </label>
         </div>
         ${renderSummaryTable(rows, total, showMerchants, p.start, p.end)}
-        ${rows.length ? `<div class="form-actions"><button class="btn btn--primary" data-action="nav" data-view="csvTypeChoice" data-start="${p.start}" data-end="${p.end}">Save to CSV</button></div>` : ''}`,
+        ${rows.length ? `<div class="form-actions"><button class="btn btn--primary" data-action="nav" data-view="csvTypeChoice" data-start="${escapeHtml(p.start)}" data-end="${escapeHtml(p.end)}">Save to CSV</button></div>` : ''}`,
       afterRender() {
         const toggle = document.getElementById('toggleMerchants');
         if (toggle) {
@@ -1101,7 +1186,7 @@ const Screens = {
         </div>
         <ul class="expense-list">
           ${items.map(e => `
-            <li><button type="button" class="expense-row ${e.date === today ? 'expense-row--today' : ''}" data-action="nav" data-view="expenseEdit" data-id="${e.id}">
+            <li><button type="button" class="expense-row ${e.date === today ? 'expense-row--today' : ''}" data-action="nav" data-view="expenseEdit" data-id="${escapeHtml(e.id)}">
               <span class="expense-row__main">
                 <span class="expense-row__cat">${escapeHtml(e.category)}${e.merchant ? ` <span class="expense-row__merchant">&middot; ${escapeHtml(e.merchant)}</span>` : ''}</span>
                 <span class="expense-row__date">${formatDateDisplay(e.date)}</span>
@@ -1124,8 +1209,8 @@ const Screens = {
           <label class="field">
             <span class="field__label">Theme Accent Color</span>
             <div class="color-picker-row">
-              <input type="color" id="colorPicker" value="${currentColor}">
-              <input type="text" id="colorHex" value="${currentColor}" maxlength="7" placeholder="#0B81FE" required pattern="^#[0-9A-Fa-f]{6}$" autocomplete="off" spellcheck="false">
+              <input type="color" id="colorPicker" value="${escapeHtml(currentColor)}">
+              <input type="text" id="colorHex" value="${escapeHtml(currentColor)}" maxlength="7" placeholder="#0866CB" required pattern="^#[0-9A-Fa-f]{6}$" autocomplete="off" spellcheck="false">
             </div>
           </label>
           <div class="form-actions">
@@ -1163,6 +1248,10 @@ const Screens = {
           e.preventDefault();
           let val = hexInput.value.trim();
           if (!val.startsWith('#')) val = '#' + val;
+          if (!accentHasSufficientContrast(val)) {
+            showFormError('Choose a darker accent color. White text on this color is below the 4.5:1 accessibility contrast minimum.');
+            return;
+          }
           const res = Store.setAccentColor(val);
           if (!res.ok) {
             showFormError(res.error);
@@ -1218,7 +1307,19 @@ const Screens = {
         document.getElementById('restoreFile').addEventListener('change', async (e) => {
           const file = e.target.files[0];
           if (!file) return;
-          const text = await file.text();
+          if (file.size > MAX_BACKUP_FILE_BYTES) {
+            e.target.value = '';
+            showToast('Backup file is too large to restore (maximum 5 MB).', true);
+            return;
+          }
+          let text;
+          try {
+            text = await file.text();
+          } catch (error) {
+            e.target.value = '';
+            showToast('Unable to read the selected backup file.', true);
+            return;
+          }
           const confirmed = await showConfirm('This will overwrite all current data with the backup file. Continue?', { danger: true, yesLabel: 'Restore' });
           if (!confirmed) { e.target.value = ''; return; }
           const res = Store.importBackup(text);
@@ -1421,7 +1522,37 @@ if (homeBtn) {
 
 /* ---------------- render loop ---------------- */
 
-function render() {
+function resetScrollPosition() {
+  try {
+    if (typeof window.scrollTo === 'function') window.scrollTo(0, 0);
+  } catch (error) {
+    // Scroll reset is best-effort in embedded/test environments.
+  }
+  if (appEl) {
+    try { appEl.scrollTop = 0; } catch (error) { /* ignore */ }
+  }
+}
+
+function focusAfterNavigation() {
+  if (!focusOnRender) return;
+  focusOnRender = false;
+  const active = document.activeElement;
+  if (active && active !== document.body && appEl.contains(active)) return;
+  if (!titleEl || typeof titleEl.focus !== 'function') return;
+  try { titleEl.focus({ preventScroll: true }); }
+  catch (error) { try { titleEl.focus(); } catch (focusError) { /* ignore */ } }
+}
+
+function hasTransientUi() {
+  if (modalRoot && modalRoot.childElementCount) return true;
+  if (appEl.querySelector('form')) return true;
+  const active = document.activeElement;
+  return !!(active && appEl.contains(active) && /^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName));
+}
+
+function renderUnbatched() {
+  // A route change must not leave a modal promise pending or its key listener attached.
+  closeActiveModal(false);
   if (Store.getRecoveryState()) {
     const recovery = Store.getRecoveryState();
     titleEl.textContent = 'Data Recovery Required';
@@ -1454,7 +1585,7 @@ function render() {
           </div>
           <p class="section-hint">Only entries identified as invalid will be reset. Valid stored entries are retained.</p>` : ''}
       </section>`;
-    appEl.scrollTop = 0;
+    resetScrollPosition();
     return;
   }
   if (searchBtn) searchBtn.hidden = false;
@@ -1476,10 +1607,26 @@ function render() {
   if (homeBtn) homeBtn.hidden = (screenState.view === 'home');
   appEl.innerHTML = screen.html;
   if (screen.afterRender) screen.afterRender();
-  appEl.scrollTop = 0;
+  resetScrollPosition();
+  focusAfterNavigation();
 }
 
-window.onStoreUpdated = render;
+function render() {
+  Store.beginReadBatch();
+  try {
+    renderUnbatched();
+  } finally {
+    Store.endReadBatch();
+  }
+}
+
+window.onStoreUpdated = function () {
+  if (hasTransientUi()) {
+    showToast('Data changed in another tab. Finish or cancel this screen to refresh.');
+    return;
+  }
+  render();
+};
 
 render();
 

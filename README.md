@@ -89,8 +89,8 @@ Two things were added during planning review, both agreed on beforehand:
 
 ## Release and cache versions
 
-The home-screen label is the user-facing application release (`v11.4`). The
-Service Worker cache name (`expense-tracker-v25`) is an independent cache
+The home-screen label is the user-facing application release (`v11.5`). The
+Service Worker cache name (`expense-tracker-v26`) is an independent cache
 revision, not a second spelling of the application version. Increment the cache
 revision whenever an app-shell asset or Service Worker caching behavior changes;
 update the app version when publishing a user-facing release.
@@ -105,8 +105,17 @@ update the app version when publishing a user-facing release.
   exceptions; other interactive controls retain 48px minimum targets where
   applicable.
 - The app-shell CSP does not use `unsafe-inline`: `script-src 'self'`, `style-src 'self'`, and `style-src-attr 'none'`. Validate theme preview/save and main UI flows in browser DevTools after CSP changes.
+- The default accent (`#0866CB`) keeps white text at or above the 4.5:1 WCAG AA contrast ratio; accent changes are rejected on save when white-on-accent contrast is lower.
 
 ## Changelog
+
+**v11.5 — Security, Accessibility & Reliability Hardening**
+- Escaped expense IDs in rendered attributes and restricted imported/new IDs to a safe character set.
+- Prevented cross-tab storage updates from wiping unsaved forms or open modals; added a non-blocking notice instead.
+- Fixed scroll reset, navigation focus, screen-reader status noise, disabled-button styling, and the default accent contrast.
+- Aligned date ceilings for imported tomorrow records, added backup size limits, merchant-length validation, and orphan-category edit recovery.
+- Made Service Worker precaching per-asset tolerant, added cache-error fallbacks, and removed forced worker takeover.
+- Updated the user-facing app release label to `v11.5`; Service Worker cache revision advanced to `v26` for the updated app-shell assets.
 
 **v11.4 — Mobile Summary & Expense List UI**
 - Added a theme-accent Grand Total bar above the Summary table while retaining the bottom Grand Total. The Summary table and its header now use a white background.
